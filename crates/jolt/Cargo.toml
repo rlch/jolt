@@ -1,0 +1,16 @@
+[package]
+name = "jolt"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+jolt_core = { path = "../core" }
+
+[target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
+jolt_jsc = { path = "../jsc" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+jolt_web = { path = "../web" }
+
+[target.'cfg(not(any(target_os = "ios", target_os = "macos", target_arch = "wasm32")))'.dependencies]
+jolt_quickjs = { path = "../quickjs" }

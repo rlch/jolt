@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/quickjs",
+    "crates/jsc",
+    "crates/web",
+    "crates/jolt",
+    "flutter_jolt/rust",
+]
+
+# Use patched FRB fork with wasm-bindgen 0.2.114+ compatibility
+[patch.crates-io]
+flutter_rust_bridge = { git = "https://github.com/rlch/flutter_rust_bridge.git", branch = "master" }
+flutter_rust_bridge_macros = { git = "https://github.com/rlch/flutter_rust_bridge.git", branch = "master" }

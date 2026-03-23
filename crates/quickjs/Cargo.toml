@@ -1,0 +1,8 @@
+[package]
+name = "jolt_quickjs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+jolt_core = { path = "../core" }
+rquickjs = { version = "0.11", features = ["bindgen", "classes", "properties", "parallel"] }

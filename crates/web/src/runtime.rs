@@ -1,0 +1,99 @@
+use jolt_core::{JoltError, JsRuntime, JsValue};
+use wasm_bindgen::prelude::*;
+
+use crate::convert::{from_js_value, to_js_value};
+
+pub struct WebRuntime;
+
+impl WebRuntime {
+    pub fn new() -> Result<Self, JoltError> {
+        Ok(Self)
+    }
+}
+
+impl JsRuntime for WebRuntime {
+    fn eval(&mut self, code: &str) -> Result<JsValue, JoltError> {
+        let result = js_sys::eval(code).map_err(|e| JoltError::EvalError {
+            message: format!("{:?}", e),
+            stack: None,
+        })?;
+        to_js_value(&result)
+    }
+
+    fn eval_async(&mut self, code: &str) -> Result<JsValue, JoltError> {
+        // In WASM, we can't block on promises synchronously.
+        // This evaluates the expression but can't resolve promises.
+        self.eval(code)
+    }
+
+    fn call_function(&mut self, name: &str, args: &[JsValue]) -> Result<JsValue, JoltError> {
+        let global = js_sys::global();
+        let func = js_sys::Reflect::get(&global, &wasm_bindgen::JsValue::from_str(name))
+            .map_err(|_| JoltError::FunctionNotFound(name.to_owned()))?;
+
+        let func = js_sys::Function::from(func);
+        let js_args = js_sys::Array::new_with_length(args.len() as u32);
+        for (i, arg) in args.iter().enumerate() {
+            js_args.set(i as u32, from_js_value(arg)?);
+        }
+
+        let result = func.apply(&wasm_bindgen::JsValue::undefined(), &js_args)
+            .map_err(|e| JoltError::EvalError {
+                message: format!("{:?}", e),
+                stack: None,
+            })?;
+
+        to_js_value(&result)
+    }
+
+    fn set_global(&mut self, name: &str, value: JsValue) -> Result<(), JoltError> {
+        let global = js_sys::global();
+        let js_val = from_js_value(&value)?;
+        js_sys::Reflect::set(&global, &wasm_bindgen::JsValue::from_str(name), &js_val)
+            .map_err(|e| JoltError::RuntimeError(format!("Failed to set global: {:?}", e)))?;
+        Ok(())
+    }
+
+    fn get_global(&mut self, name: &str) -> Result<JsValue, JoltError> {
+        let global = js_sys::global();
+        let val = js_sys::Reflect::get(&global, &wasm_bindgen::JsValue::from_str(name))
+            .map_err(|e| JoltError::RuntimeError(format!("Failed to get global: {:?}", e)))?;
+        to_js_value(&val)
+    }
+
+    fn register_function<F>(&mut self, name: &str, f: F) -> Result<(), JoltError>
+    where
+        F: Fn(Vec<JsValue>) -> Result<JsValue, JoltError> + Send + 'static,
+    {
+        let closure = Closure::wrap(Box::new(move |args: wasm_bindgen::JsValue| -> wasm_bindgen::JsValue {
+            let js_args = js_sys::Array::from(&args);
+            let converted: Vec<JsValue> = (0..js_args.length())
+                .filter_map(|i| to_js_value(&js_args.get(i)).ok())
+                .collect();
+            match f(converted) {
+                Ok(val) => from_js_value(&val).unwrap_or(wasm_bindgen::JsValue::undefined()),
+                Err(_) => wasm_bindgen::JsValue::undefined(),
+            }
+        }) as Box<dyn Fn(wasm_bindgen::JsValue) -> wasm_bindgen::JsValue>);
+
+        let global = js_sys::global();
+        js_sys::Reflect::set(
+            &global,
+            &wasm_bindgen::JsValue::from_str(name),
+            closure.as_ref(),
+        )
+        .map_err(|e| JoltError::RuntimeError(format!("Failed to register function: {:?}", e)))?;
+
+        // Leak the closure to keep it alive
+        closure.forget();
+        Ok(())
+    }
+
+    fn eval_module(&mut self, code: &str, _module_name: &str) -> Result<JsValue, JoltError> {
+        // In browser context, module evaluation requires dynamic import
+        // which is async. Fall back to eval for now.
+        self.eval(code)
+    }
+}
+
+unsafe impl Send for WebRuntime {}
