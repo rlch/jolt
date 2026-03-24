@@ -1,4 +1,4 @@
-# Jolt
+# Jolt (JavaScript on lot's of targets)
 
 Rust-powered JavaScript runtime for Flutter. Picks the best JS engine for each platform and bridges it to Dart via [`flutter_rust_bridge`](https://github.com/aspect-build/rules_swc).
 
