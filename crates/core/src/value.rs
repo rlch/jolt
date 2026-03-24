@@ -128,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_as_f64() {
-        assert_eq!(JsValue::Float(3.14).as_f64(), Some(3.14));
+        assert_eq!(JsValue::Float(2.72).as_f64(), Some(2.72));
         assert_eq!(JsValue::Int(42).as_f64(), Some(42.0));
         assert_eq!(JsValue::Null.as_f64(), None);
     }
@@ -158,7 +158,7 @@ mod tests {
     fn test_from_impls() {
         assert_eq!(JsValue::from("test"), JsValue::String("test".to_owned()));
         assert_eq!(JsValue::from(42i64), JsValue::Int(42));
-        assert_eq!(JsValue::from(3.14f64), JsValue::Float(3.14));
+        assert_eq!(JsValue::from(2.72f64), JsValue::Float(2.72));
         assert_eq!(JsValue::from(true), JsValue::Bool(true));
     }
 }
