@@ -1,0 +1,23 @@
+[workspace]
+changelog_config = "cliff.toml"
+publish_timeout = "10m"
+
+[[package]]
+name = "jolt_core"
+publish = true
+
+[[package]]
+name = "jolt_quickjs"
+publish = true
+
+[[package]]
+name = "jolt_jsc"
+publish = true
+
+[[package]]
+name = "jolt_web"
+publish = true
+
+[[package]]
+name = "jolt"
+publish = true

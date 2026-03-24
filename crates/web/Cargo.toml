@@ -1,7 +1,10 @@
 [package]
 name = "jolt_web"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "WASM/browser backend for the Jolt JavaScript runtime"
 
 [dependencies]
 jolt_core = { path = "../core" }

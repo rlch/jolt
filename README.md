@@ -1,6 +1,9 @@
 # Jolt (JavaScript on lot's of targets)
 
-Rust-powered JavaScript runtime for Flutter. Picks the best JS engine for each platform and bridges it to Dart via [`flutter_rust_bridge`](https://github.com/aspect-build/rules_swc).
+Rust-powered JavaScript runtime for Flutter. Picks the best JS engine for each platform and bridges it to Dart via [`flutter_rust_bridge`](https://github.com/aspect-build/flutter_rust_bridge).
+
+[![CI](https://github.com/rlch/jolt/actions/workflows/ci.yml/badge.svg)](https://github.com/rlch/jolt/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## Why
 
@@ -16,8 +19,8 @@ One Dart API, three engines, every Flutter platform.
 
 | Platform | Engine | Crate | Notes |
 |---|---|---|---|
-| iOS / macOS | JavaScriptCore | [`rusty_jsc`](https://github.com/nicbarker/JavaScriptCore-sys) | Native framework, zero bundle cost |
-| Android / Linux / Windows | QuickJS | [`rquickjs`](https://github.com/nicbarker/JavaScriptCore-sys) | ~1 MB, embeddable, no JIT |
+| iOS / macOS | JavaScriptCore | [`rusty_jsc`](https://docs.rs/rusty_jsc) | Native framework, zero bundle cost |
+| Android / Linux / Windows | QuickJS | [`rquickjs`](https://docs.rs/rquickjs) | ~1 MB, embeddable, no JIT |
 | Web (WASM) | Host JS | [`js-sys`](https://docs.rs/js-sys) / [`wasm-bindgen`](https://docs.rs/wasm-bindgen) | Calls through to browser engine |
 
 ## Quick start
