@@ -3,11 +3,17 @@ use wasm_bindgen::prelude::*;
 
 use crate::convert::{from_js_value, to_js_value};
 
-pub struct WebRuntime;
+pub struct WebRuntime {
+    /// Stored closures for registered functions — prevents memory leaks.
+    /// Without this, `Closure::forget()` would permanently leak each closure.
+    _closures: Vec<Closure<dyn Fn(wasm_bindgen::JsValue) -> wasm_bindgen::JsValue>>,
+}
 
 impl WebRuntime {
     pub fn new() -> Result<Self, JoltError> {
-        Ok(Self)
+        Ok(Self {
+            _closures: Vec::new(),
+        })
     }
 }
 
@@ -72,7 +78,11 @@ impl JsRuntime for WebRuntime {
                 .collect();
             match f(converted) {
                 Ok(val) => from_js_value(&val).unwrap_or(wasm_bindgen::JsValue::undefined()),
-                Err(_) => wasm_bindgen::JsValue::undefined(),
+                Err(e) => {
+                    // Throw a JS Error so callers can detect failure
+                    let err = js_sys::Error::new(&e.to_string());
+                    wasm_bindgen::throw_val(err.into())
+                }
             }
         }) as Box<dyn Fn(wasm_bindgen::JsValue) -> wasm_bindgen::JsValue>);
 
@@ -84,8 +94,8 @@ impl JsRuntime for WebRuntime {
         )
         .map_err(|e| JoltError::RuntimeError(format!("Failed to register function: {:?}", e)))?;
 
-        // Leak the closure to keep it alive
-        closure.forget();
+        // Store the closure to keep it alive (dropped with the runtime)
+        self._closures.push(closure);
         Ok(())
     }
 

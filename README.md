@@ -134,10 +134,12 @@ just run-device <id>
 
 ## Status
 
-This is an early-stage project. Current limitations:
+Current limitations:
 
-- `register_function` is not yet implemented for the JSC backend (requires unsafe FFI trampoline)
-- `eval_async` and `eval_module` have partial implementations on JSC and WASM backends
+- `eval_async` on JSC falls back to `eval()` (no promise resolution — JSC run loop not exposed via `rusty_jsc`)
+- `eval_async` on Web falls back to `eval()` (can't block on promises in WASM)
+- `eval_module` on JSC/Web falls back to `eval()` (no module semantics)
+- `register_function` is not yet exposed in the Dart FRB API (Rust-side only)
 - FRB 2.11.1 generates a `wasmBindgenName` parameter that must be stripped after codegen (`just frb` handles this)
 
 ## License

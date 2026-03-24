@@ -49,6 +49,26 @@ cd flutter_jolt/example && flutter run
 - JSC tests must run single-threaded (`--test-threads=1`) due to JSC's thread safety model
 - FRB can't codegen trait objects — facade resolves to concrete type at compile time
 - FRB can't serialize types from external crates — bridge uses `#[frb(mirror)]` to generate translatable Dart types for `JsValue`/`JsEntry`/`JoltError`
-- `register_function` for JSC is not yet implemented (requires unsafe FFI trampoline)
 - `eval_async` and `eval_module` have limited implementations for JSC and WASM backends
 - FRB 2.11.1 generates `wasmBindgenName` parameter not supported by the Dart package — must be manually removed after each codegen run
+
+## Memory Management
+
+- **JSC**: `register_function()` uses `Box::into_raw()` for FFI trampoline pointers. Raw pointers are stored in `JscRuntime._closures` and reclaimed via `Box::from_raw()` on `Drop`.
+- **Web**: Registered function closures are stored in `WebRuntime._closures` and drop with the runtime. Previous `Closure::forget()` approach has been replaced.
+- **QuickJS**: Memory managed by `rquickjs` context lifecycle — no manual cleanup needed.
+
+## Thread Safety
+
+- All backends require exclusive `&mut self` access via the `JsRuntime` trait
+- JSC is single-threaded — `unsafe impl Send` is safe under exclusive access but JSC contexts must not be shared across threads
+- Web/WASM is inherently single-threaded
+- FRB bridge wraps runtime in `Mutex` with error-aware locking (returns `JoltError` on poison, no panics)
+
+## Known Limitations
+
+- `eval_async` on JSC falls back to `eval()` — no promise resolution (JSC run loop not exposed via `rusty_jsc`)
+- `eval_async` on Web falls back to `eval()` — can't block on promises in WASM
+- `eval_module` on JSC/Web falls back to `eval()` — no module semantics
+- `register_function` is not exposed in the Dart FRB API — Rust-side only for now
+- Web backend has no unit tests (requires WASM target / browser environment)

@@ -46,22 +46,17 @@ impl JsRuntime for QuickJsRuntime {
     fn eval_async(&mut self, code: &str) -> Result<JsValue, JoltError> {
         let code = code.to_owned();
 
-        // Get the promise inside with(), then drain jobs outside, then resolve inside with()
-        let promise = self.context.with(|ctx| {
-            let p: rquickjs::Promise = ctx.eval_promise(code).map_err(|e| {
-                JoltError::EvalError {
-                    message: e.to_string(),
-                    stack: None,
-                }
-            })?;
-            Ok::<_, JoltError>(rquickjs::Persistent::save(&ctx, p))
-        })?;
-
-        self.drain_jobs();
-
         self.context.with(|ctx| {
-            let promise: rquickjs::Promise = promise.restore(&ctx)
-                .map_err(|e| JoltError::RuntimeError(e.to_string()))?;
+            let promise: rquickjs::promise::MaybePromise =
+                ctx.eval(code).map_err(|e| {
+                    let msg = format!("{e}");
+                    let stack = ctx.catch().as_string().and_then(|s| s.to_string().ok());
+                    JoltError::EvalError {
+                        message: msg,
+                        stack,
+                    }
+                })?;
+
             let val: Value = promise.finish().map_err(|e| {
                 JoltError::EvalError {
                     message: e.to_string(),
@@ -279,5 +274,211 @@ mod tests {
             }
             other => panic!("Expected object, got {other:?}"),
         }
+    }
+
+    // --- Additional tests ---
+
+    #[test]
+    fn test_register_function_error_propagation() {
+        let mut rt = QuickJsRuntime::new().unwrap();
+        rt.register_function("fail", |_| {
+            Err(JoltError::RuntimeError("intentional failure".to_owned()))
+        })
+        .unwrap();
+        let result = rt.eval("try { fail(); 'no error' } catch(e) { 'caught' }");
+        assert_eq!(result.unwrap(), JsValue::String("caught".to_owned()));
+    }
+
+    #[test]
+    fn test_register_function_replace() {
+        let mut rt = QuickJsRuntime::new().unwrap();
+        rt.register_function("val", |_| Ok(JsValue::Int(1))).unwrap();
+        assert_eq!(rt.eval("val()").unwrap(), JsValue::Int(1));
+        rt.register_function("val", |_| Ok(JsValue::Int(2))).unwrap();
+        assert_eq!(rt.eval("val()").unwrap(), JsValue::Int(2));
+    }
+
+    #[test]
+    fn test_register_many_functions() {
+        let mut rt = QuickJsRuntime::new().unwrap();
+        for i in 0..100 {
+            let name = format!("fn_{i}");
+            rt.register_function(&name, move |_| Ok(JsValue::Int(i))).unwrap();
+        }
+        assert_eq!(rt.eval("fn_0()").unwrap(), JsValue::Int(0));
+        assert_eq!(rt.eval("fn_99()").unwrap(), JsValue::Int(99));
+    }
+
+    #[test]
+    fn test_eval_async_promise() {
+        let mut rt = QuickJsRuntime::new().unwrap();
+        let result = rt.eval_async("Promise.resolve(42)").unwrap();
+        assert_eq!(result, JsValue::Int(42));
+    }
+
+    #[test]
+    fn test_eval_async_chained_promise() {
+        let mut rt = QuickJsRuntime::new().unwrap();
+        let result = rt
+            .eval_async("Promise.resolve(10).then(x => x * 2).then(x => x + 1)")
+            .unwrap();
+        assert_eq!(result, JsValue::Int(21));
+    }
+
+    #[test]
+    fn test_call_function_not_found() {
+        let mut rt = QuickJsRuntime::new().unwrap();
+        let result = rt.call_function("nonexistent", &[]);
+        assert!(matches!(result, Err(JoltError::FunctionNotFound(_))));
+    }
+
+    #[test]
+    fn test_eval_syntax_error() {
+        let mut rt = QuickJsRuntime::new().unwrap();
+        let result = rt.eval("function {{{");
+        assert!(matches!(result, Err(JoltError::EvalError { .. })));
+    }
+
+    #[test]
+    fn test_nested_object() {
+        let mut rt = QuickJsRuntime::new().unwrap();
+        let result = rt.eval("({a: {b: 1}})").unwrap();
+        match result {
+            JsValue::Object(outer) => {
+                let inner = outer.iter().find(|e| e.key == "a").unwrap();
+                match &inner.value {
+                    JsValue::Object(entries) => {
+                        assert!(entries.iter().any(|e| e.key == "b" && e.value == JsValue::Int(1)));
+                    }
+                    other => panic!("Expected nested object, got {other:?}"),
+                }
+            }
+            other => panic!("Expected object, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_large_array() {
+        let mut rt = QuickJsRuntime::new().unwrap();
+        let result = rt.eval("Array.from({length: 1000}, (_, i) => i)").unwrap();
+        match result {
+            JsValue::Array(arr) => assert_eq!(arr.len(), 1000),
+            other => panic!("Expected array, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_persistent_state_across_evals() {
+        let mut rt = QuickJsRuntime::new().unwrap();
+        rt.eval("var counter = 0").unwrap();
+        rt.eval("counter += 1").unwrap();
+        rt.eval("counter += 1").unwrap();
+        rt.eval("counter += 1").unwrap();
+        let result = rt.eval("counter").unwrap();
+        assert_eq!(result, JsValue::Int(3));
+    }
+
+    #[test]
+    fn test_closure_captures_state() {
+        let mut rt = QuickJsRuntime::new().unwrap();
+        rt.eval(r#"
+            var state = { count: 0 };
+            function increment() { state.count += 1; return state.count; }
+        "#).unwrap();
+        assert_eq!(rt.eval("increment()").unwrap(), JsValue::Int(1));
+        assert_eq!(rt.eval("increment()").unwrap(), JsValue::Int(2));
+        assert_eq!(rt.eval("increment()").unwrap(), JsValue::Int(3));
+    }
+
+    #[test]
+    fn test_proxy_with_registered_functions() {
+        let mut rt = QuickJsRuntime::new().unwrap();
+
+        use std::sync::{Arc, Mutex};
+        let mutations: Arc<Mutex<Vec<(String, JsValue)>>> = Arc::new(Mutex::new(Vec::new()));
+        let mutations_clone = mutations.clone();
+
+        rt.register_function("__setter", move |args| {
+            let key = args[0].as_str().unwrap_or("").to_owned();
+            let value = args.get(1).cloned().unwrap_or(JsValue::Undefined);
+            mutations_clone.lock().unwrap().push((key, value));
+            Ok(JsValue::Bool(true))
+        }).unwrap();
+
+        rt.register_function("__getter", |args| {
+            let key = args[0].as_str().unwrap_or("");
+            match key {
+                "count" => Ok(JsValue::Int(5)),
+                _ => Ok(JsValue::Undefined),
+            }
+        }).unwrap();
+
+        rt.eval(r#"
+            var props = new Proxy({}, {
+                get(target, key) { return __getter(key); },
+                set(target, key, value) { return __setter(key, value); }
+            });
+        "#).unwrap();
+
+        let result = rt.eval("props.count").unwrap();
+        assert_eq!(result, JsValue::Int(5));
+
+        rt.eval("props.count = 10").unwrap();
+        let m = mutations.lock().unwrap();
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].0, "count");
+        assert_eq!(m[0].1, JsValue::Int(10));
+    }
+
+    #[test]
+    fn test_iife_scope_with_eval() {
+        let mut rt = QuickJsRuntime::new().unwrap();
+
+        // Simulate ComponentScope pattern: IIFE returns an executor
+        rt.eval(r#"
+            var __scope = (function() {
+                var local_count = 0;
+                return function(code) { return eval(code); };
+            })();
+        "#).unwrap();
+
+        // Execute in scope — local_count is accessible
+        let result = rt.eval("__scope('local_count += 1')").unwrap();
+        assert_eq!(result, JsValue::Int(1));
+        let result = rt.eval("__scope('local_count += 1')").unwrap();
+        assert_eq!(result, JsValue::Int(2));
+
+        // local_count is NOT accessible outside the scope
+        let result = rt.eval("typeof local_count");
+        assert_eq!(result.unwrap(), JsValue::String("undefined".to_owned()));
+    }
+
+    #[test]
+    fn test_cross_scope_closure() {
+        let mut rt = QuickJsRuntime::new().unwrap();
+
+        // Parent scope provides a callback
+        rt.eval(r#"
+            var shared_ctx = {};
+            var __parent = (function() {
+                var count = 0;
+                shared_ctx.increment = function() { count += 1; return count; };
+                return function(code) { return eval(code); };
+            })();
+            var __child = (function() {
+                var ctx = shared_ctx;
+                return function(code) { return eval(code); };
+            })();
+        "#).unwrap();
+
+        // Child calls parent's callback — executes in parent's scope
+        let result = rt.eval("__child('ctx.increment()')").unwrap();
+        assert_eq!(result, JsValue::Int(1));
+        let result = rt.eval("__child('ctx.increment()')").unwrap();
+        assert_eq!(result, JsValue::Int(2));
+
+        // Parent can also see the count
+        let result = rt.eval("__parent('count')").unwrap();
+        assert_eq!(result, JsValue::Int(2));
     }
 }

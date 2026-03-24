@@ -41,6 +41,14 @@ pub struct JoltRuntime {
     inner: Mutex<jolt::DefaultRuntime>,
 }
 
+impl JoltRuntime {
+    fn lock(&self) -> Result<std::sync::MutexGuard<'_, jolt::DefaultRuntime>, JoltError> {
+        self.inner
+            .lock()
+            .map_err(|_| JoltError::RuntimeError("Runtime lock poisoned".to_owned()))
+    }
+}
+
 #[flutter_rust_bridge::frb]
 impl JoltRuntime {
     #[flutter_rust_bridge::frb(sync)]
@@ -51,11 +59,11 @@ impl JoltRuntime {
     }
 
     pub fn eval(&self, code: String) -> Result<JsValue, JoltError> {
-        self.inner.lock().unwrap().eval(&code)
+        self.lock()?.eval(&code)
     }
 
     pub fn eval_async(&self, code: String) -> Result<JsValue, JoltError> {
-        self.inner.lock().unwrap().eval_async(&code)
+        self.lock()?.eval_async(&code)
     }
 
     pub fn call_function(
@@ -63,15 +71,15 @@ impl JoltRuntime {
         name: String,
         args: Vec<JsValue>,
     ) -> Result<JsValue, JoltError> {
-        self.inner.lock().unwrap().call_function(&name, &args)
+        self.lock()?.call_function(&name, &args)
     }
 
     pub fn set_global(&self, name: String, value: JsValue) -> Result<(), JoltError> {
-        self.inner.lock().unwrap().set_global(&name, value)
+        self.lock()?.set_global(&name, value)
     }
 
     pub fn get_global(&self, name: String) -> Result<JsValue, JoltError> {
-        self.inner.lock().unwrap().get_global(&name)
+        self.lock()?.get_global(&name)
     }
 }
 
