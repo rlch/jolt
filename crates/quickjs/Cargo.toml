@@ -9,3 +9,6 @@ description = "QuickJS backend for the Jolt JavaScript runtime"
 [dependencies]
 jolt_core = { path = "../core" }
 rquickjs = { version = "0.11", features = ["bindgen", "classes", "properties", "parallel"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }

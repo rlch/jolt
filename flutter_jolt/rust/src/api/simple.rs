@@ -63,7 +63,12 @@ impl JoltRuntime {
     }
 
     pub fn eval_async(&self, code: String) -> Result<JsValue, JoltError> {
-        self.lock()?.eval_async(&code)
+        let mut guard = self.lock()?;
+        let future = guard.eval_async(&code);
+        // FRB handles the Dart async boundary. The future resolves synchronously on
+        // QuickJS/JSC (job queue driven inline). On WASM this would need spawn_local,
+        // but the FRB bridge isn't used on WASM (Dart calls JS directly).
+        futures::executor::block_on(future)
     }
 
     pub fn call_function(

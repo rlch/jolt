@@ -3,5 +3,5 @@ mod runtime;
 mod value;
 
 pub use error::JoltError;
-pub use runtime::JsRuntime;
+pub use runtime::{JsResultFuture, JsRuntime};
 pub use value::{JsEntry, JsValue};

@@ -1,4 +1,4 @@
-use jolt_core::{JoltError, JsRuntime, JsValue};
+use jolt_core::{JoltError, JsResultFuture, JsRuntime, JsValue};
 use rusty_jsc::{callback, JSContext, JSValue, JSValue as JscValue};
 
 use crate::convert::{from_js_value, to_js_value};
@@ -143,11 +143,12 @@ impl JsRuntime for JscRuntime {
         to_js_value(&self.context, &result)
     }
 
-    fn eval_async(&mut self, code: &str) -> Result<JsValue, JoltError> {
-        // JSC doesn't have a built-in promise resolution mechanism in rusty_jsc.
-        // For now, evaluate and return the result directly.
-        // Full async/promise support requires polling the JSC run loop.
-        self.eval(code)
+    fn eval_async(&mut self, code: &str) -> JsResultFuture<'_> {
+        // JSC doesn't expose promise resolution through rusty_jsc.
+        // Falls back to sync eval — promises return the promise object, not the resolved value.
+        // TODO: Implement via JSC run loop or drainMicrotasks when bindings are available.
+        let result = self.eval(code);
+        Box::pin(async move { result })
     }
 
     fn call_function(&mut self, name: &str, args: &[JsValue]) -> Result<JsValue, JoltError> {

@@ -10,6 +10,7 @@ crate-type = ["cdylib", "staticlib"]
 jolt = { path = "../../crates/jolt" }
 jolt_core = { path = "../../crates/core" }
 flutter_rust_bridge = "=2.11.1"
+futures = { version = "0.3", default-features = false, features = ["executor"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

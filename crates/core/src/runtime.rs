@@ -1,11 +1,18 @@
+use std::future::Future;
+use std::pin::Pin;
+
 use crate::{JoltError, JsValue};
+
+/// A boxed future returning a Result — used for async runtime methods.
+pub type JsResultFuture<'a> = Pin<Box<dyn Future<Output = Result<JsValue, JoltError>> + 'a>>;
 
 pub trait JsRuntime: Send {
     /// Evaluate a JS expression/script.
     fn eval(&mut self, code: &str) -> Result<JsValue, JoltError>;
 
-    /// Evaluate and await a Promise (resolved value).
-    fn eval_async(&mut self, code: &str) -> Result<JsValue, JoltError>;
+    /// Evaluate JS code and await the result if it's a Promise.
+    /// Returns the resolved value for promises, or the direct result for non-promise values.
+    fn eval_async(&mut self, code: &str) -> JsResultFuture<'_>;
 
     /// Call a global function by name.
     fn call_function(&mut self, name: &str, args: &[JsValue]) -> Result<JsValue, JoltError>;

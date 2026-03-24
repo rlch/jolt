@@ -1,4 +1,4 @@
-use jolt_core::{JoltError, JsRuntime, JsValue};
+use jolt_core::{JoltError, JsResultFuture, JsRuntime, JsValue};
 use wasm_bindgen::prelude::*;
 
 use crate::convert::{from_js_value, to_js_value};
@@ -26,10 +26,29 @@ impl JsRuntime for WebRuntime {
         to_js_value(&result)
     }
 
-    fn eval_async(&mut self, code: &str) -> Result<JsValue, JoltError> {
-        // In WASM, we can't block on promises synchronously.
-        // This evaluates the expression but can't resolve promises.
-        self.eval(code)
+    fn eval_async(&mut self, code: &str) -> JsResultFuture<'_> {
+        let result = js_sys::eval(code).map_err(|e| JoltError::EvalError {
+            message: format!("{:?}", e),
+            stack: None,
+        });
+
+        Box::pin(async move {
+            let val = result?;
+
+            // If the result is a Promise, await it via wasm-bindgen-futures
+            if val.is_instance_of::<js_sys::Promise>() {
+                let promise = js_sys::Promise::from(val);
+                let resolved = wasm_bindgen_futures::JsFuture::from(promise)
+                    .await
+                    .map_err(|e| JoltError::EvalError {
+                        message: format!("{:?}", e),
+                        stack: None,
+                    })?;
+                to_js_value(&resolved)
+            } else {
+                to_js_value(&val)
+            }
+        })
     }
 
     fn call_function(&mut self, name: &str, args: &[JsValue]) -> Result<JsValue, JoltError> {

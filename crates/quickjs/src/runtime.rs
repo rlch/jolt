@@ -1,4 +1,4 @@
-use jolt_core::{JoltError, JsRuntime, JsValue};
+use jolt_core::{JoltError, JsResultFuture, JsRuntime, JsValue};
 use rquickjs::{Context, Function, Module, Runtime, Value, function::Args};
 
 use crate::convert::{from_js_value, to_js_value, JsValueWrapper};
@@ -43,27 +43,30 @@ impl JsRuntime for QuickJsRuntime {
         })
     }
 
-    fn eval_async(&mut self, code: &str) -> Result<JsValue, JoltError> {
+    fn eval_async(&mut self, code: &str) -> JsResultFuture<'_> {
         let code = code.to_owned();
 
-        self.context.with(|ctx| {
-            let promise: rquickjs::promise::MaybePromise =
-                ctx.eval(code).map_err(|e| {
-                    let msg = format!("{e}");
-                    let stack = ctx.catch().as_string().and_then(|s| s.to_string().ok());
+        // QuickJS has its own microtask queue — MaybePromise::finish() drives it synchronously.
+        Box::pin(async move {
+            self.context.with(|ctx| {
+                let promise: rquickjs::promise::MaybePromise =
+                    ctx.eval(code).map_err(|e| {
+                        let msg = format!("{e}");
+                        let stack = ctx.catch().as_string().and_then(|s| s.to_string().ok());
+                        JoltError::EvalError {
+                            message: msg,
+                            stack,
+                        }
+                    })?;
+
+                let val: Value = promise.finish().map_err(|e| {
                     JoltError::EvalError {
-                        message: msg,
-                        stack,
+                        message: e.to_string(),
+                        stack: None,
                     }
                 })?;
-
-            let val: Value = promise.finish().map_err(|e| {
-                JoltError::EvalError {
-                    message: e.to_string(),
-                    stack: None,
-                }
-            })?;
-            to_js_value(&ctx, val)
+                to_js_value(&ctx, val)
+            })
         })
     }
 
@@ -309,18 +312,19 @@ mod tests {
         assert_eq!(rt.eval("fn_99()").unwrap(), JsValue::Int(99));
     }
 
-    #[test]
-    fn test_eval_async_promise() {
+    #[tokio::test]
+    async fn test_eval_async_promise() {
         let mut rt = QuickJsRuntime::new().unwrap();
-        let result = rt.eval_async("Promise.resolve(42)").unwrap();
+        let result = rt.eval_async("Promise.resolve(42)").await.unwrap();
         assert_eq!(result, JsValue::Int(42));
     }
 
-    #[test]
-    fn test_eval_async_chained_promise() {
+    #[tokio::test]
+    async fn test_eval_async_chained_promise() {
         let mut rt = QuickJsRuntime::new().unwrap();
         let result = rt
             .eval_async("Promise.resolve(10).then(x => x * 2).then(x => x + 1)")
+            .await
             .unwrap();
         assert_eq!(result, JsValue::Int(21));
     }
