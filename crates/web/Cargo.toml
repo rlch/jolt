@@ -7,7 +7,7 @@ repository.workspace = true
 description = "WASM/browser backend for the Jolt JavaScript runtime"
 
 [dependencies]
-jolt_core = { path = "../core" }
+jolt_core = { version = "0.1.0", path = "../core" }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"

@@ -8,13 +8,13 @@ description = "Rust-powered JavaScript runtime for Flutter — JSC on Apple, Qui
 readme = "../../README.md"
 
 [dependencies]
-jolt_core = { path = "../core" }
+jolt_core = { version = "0.1.0", path = "../core" }
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
-jolt_jsc = { path = "../jsc" }
+jolt_jsc = { version = "0.1.0", path = "../jsc" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-jolt_web = { path = "../web" }
+jolt_web = { version = "0.1.0", path = "../web" }
 
 [target.'cfg(not(any(target_os = "ios", target_os = "macos", target_arch = "wasm32")))'.dependencies]
-jolt_quickjs = { path = "../quickjs" }
+jolt_quickjs = { version = "0.1.0", path = "../quickjs" }

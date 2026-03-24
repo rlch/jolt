@@ -7,7 +7,7 @@ repository.workspace = true
 description = "QuickJS backend for the Jolt JavaScript runtime"
 
 [dependencies]
-jolt_core = { path = "../core" }
+jolt_core = { version = "0.1.0", path = "../core" }
 rquickjs = { version = "0.11", features = ["bindgen", "classes", "properties", "parallel"] }
 
 [dev-dependencies]

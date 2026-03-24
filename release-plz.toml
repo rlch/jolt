@@ -21,3 +21,8 @@ publish = true
 [[package]]
 name = "jolt"
 publish = true
+
+[[package]]
+name = "flutter_jolt"
+publish = false
+release = false
