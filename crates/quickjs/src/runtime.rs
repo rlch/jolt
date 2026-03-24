@@ -191,8 +191,8 @@ mod tests {
     #[test]
     fn test_eval_float() {
         let mut rt = QuickJsRuntime::new().unwrap();
-        let result = rt.eval("3.14").unwrap();
-        assert_eq!(result, JsValue::Float(3.14));
+        let result = rt.eval("2.72").unwrap();
+        assert_eq!(result, JsValue::Float(2.72));
     }
 
     #[test]

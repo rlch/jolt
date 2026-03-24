@@ -19,11 +19,15 @@ fn get_drain_microtasks() -> Option<DrainMicrotasksFn> {
         let sym = unsafe {
             libc::dlsym(
                 libc::RTLD_DEFAULT,
-                b"_ZN3JSC2VM15drainMicrotasksEv\0".as_ptr() as *const _,
+                c"_ZN3JSC2VM15drainMicrotasksEv".as_ptr(),
             )
         };
         if !sym.is_null() {
-            unsafe { DRAIN_MICROTASKS = Some(std::mem::transmute(sym)) };
+            unsafe {
+                DRAIN_MICROTASKS = Some(
+                    std::mem::transmute::<*mut libc::c_void, DrainMicrotasksFn>(sym),
+                )
+            };
         }
     });
     unsafe { DRAIN_MICROTASKS }
@@ -63,7 +67,7 @@ fn registered_fn_trampoline(
             .map_err(|_| JscValue::string(ctx, "invalid closure pointer"))?
             as usize;
 
-        let closure: &Box<ClosureFn> = unsafe { &*(ptr_val as *const Box<ClosureFn>) };
+        let closure: &ClosureFn = unsafe { &**(ptr_val as *const Box<ClosureFn>) };
 
         let mut js_args = Vec::with_capacity(args.len() - 1);
         for arg in &args[1..] {
@@ -350,8 +354,8 @@ mod tests {
     #[test]
     fn test_eval_float() {
         let mut rt = JscRuntime::new().unwrap();
-        let result = rt.eval("3.14").unwrap();
-        assert_eq!(result, JsValue::Float(3.14));
+        let result = rt.eval("2.72").unwrap();
+        assert_eq!(result, JsValue::Float(2.72));
     }
 
     #[test]
@@ -435,10 +439,10 @@ mod tests {
     #[test]
     fn test_register_function_no_args() {
         let mut rt = JscRuntime::new().unwrap();
-        rt.register_function("get_pi", |_args| Ok(JsValue::Float(3.14)))
+        rt.register_function("get_pi", |_args| Ok(JsValue::Float(2.72)))
             .unwrap();
         let result = rt.eval("get_pi()").unwrap();
-        assert_eq!(result, JsValue::Float(3.14));
+        assert_eq!(result, JsValue::Float(2.72));
     }
 
     #[test]
