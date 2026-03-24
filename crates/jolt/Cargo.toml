@@ -10,14 +10,14 @@ readme = "../../README.md"
 [lib]
 name = "jolt"
 
+[features]
+default = []
+jsc = ["dep:jolt_jsc"]
+quickjs = ["dep:jolt_quickjs"]
+web = ["dep:jolt_web"]
+
 [dependencies]
 jolt_core = { version = "0.1.2", path = "../core" }
-
-[target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
-jolt_jsc = { version = "0.1.0", path = "../jsc" }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-jolt_web = { version = "0.1.2", path = "../web" }
-
-[target.'cfg(not(any(target_os = "ios", target_os = "macos", target_arch = "wasm32")))'.dependencies]
-jolt_quickjs = { version = "0.1.2", path = "../quickjs" }
+jolt_jsc = { version = "0.1.0", path = "../jsc", optional = true }
+jolt_quickjs = { version = "0.1.2", path = "../quickjs", optional = true }
+jolt_web = { version = "0.1.2", path = "../web", optional = true }

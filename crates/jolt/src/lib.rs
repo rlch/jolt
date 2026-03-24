@@ -2,13 +2,18 @@
 //!
 //! `jolt` is a facade crate — it re-exports [`JsRuntime`], [`JsValue`], and
 //! friends from [`jolt_core`], and aliases one backend as [`DefaultRuntime`]
-//! based on `cfg` gates:
+//! based on feature flags:
 //!
-//! | Target | Backend |
+//! | Feature | Backend |
 //! |---|---|
-//! | iOS / macOS | `jolt_jsc::JscRuntime` (JavaScriptCore) |
-//! | `wasm32` | `jolt_web::WebRuntime` (host browser JS) |
-//! | Everything else | `jolt_quickjs::QuickJsRuntime` (QuickJS) |
+//! | `jsc` | `jolt_jsc::JscRuntime` (JavaScriptCore, Apple platforms) |
+//! | `web` | `jolt_web::WebRuntime` (host browser JS, WASM) |
+//! | `quickjs` | `jolt_quickjs::QuickJsRuntime` (QuickJS, everywhere else) |
+//!
+//! If no feature is explicitly enabled, the backend is auto-selected by target:
+//! - iOS / macOS → `jsc`
+//! - `wasm32` → `web`
+//! - Everything else → `quickjs`
 //!
 //! # Quick start
 //!
@@ -22,22 +27,38 @@
 
 pub use jolt_core::{JoltError, JsEntry, JsRuntime, JsValue};
 
-#[cfg(target_os = "ios")]
+// Resolve which backend to use. Explicit feature flags take precedence,
+// otherwise fall back to target-based auto-selection.
+
+#[cfg(any(
+    feature = "jsc",
+    all(
+        not(any(feature = "quickjs", feature = "web")),
+        any(target_os = "ios", target_os = "macos")
+    )
+))]
 mod backend {
     pub use jolt_jsc::JscRuntime as DefaultRuntime;
 }
 
-#[cfg(target_os = "macos")]
-mod backend {
-    pub use jolt_jsc::JscRuntime as DefaultRuntime;
-}
-
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(
+    feature = "web",
+    all(
+        not(any(feature = "jsc", feature = "quickjs")),
+        target_arch = "wasm32"
+    )
+))]
 mod backend {
     pub use jolt_web::WebRuntime as DefaultRuntime;
 }
 
-#[cfg(not(any(target_os = "ios", target_os = "macos", target_arch = "wasm32")))]
+#[cfg(any(
+    feature = "quickjs",
+    all(
+        not(any(feature = "jsc", feature = "web")),
+        not(any(target_os = "ios", target_os = "macos", target_arch = "wasm32"))
+    )
+))]
 mod backend {
     pub use jolt_quickjs::QuickJsRuntime as DefaultRuntime;
 }

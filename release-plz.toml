@@ -22,7 +22,6 @@ publish = true
 [[package]]
 name = "jolt_rs"
 publish = true
-publish_no_verify = true
 
 [[package]]
 name = "flutter_jolt"
