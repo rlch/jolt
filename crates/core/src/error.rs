@@ -1,3 +1,5 @@
+/// Errors produced by Jolt runtime operations.
+///
 /// flutter_rust_bridge:non_opaque
 #[derive(Debug, thiserror::Error)]
 pub enum JoltError {

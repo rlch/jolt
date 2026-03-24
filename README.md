@@ -4,6 +4,7 @@ Rust-powered JavaScript runtime for Flutter. Picks the best JS engine for each p
 
 [![CI](https://github.com/rlch/jolt/actions/workflows/ci.yml/badge.svg)](https://github.com/rlch/jolt/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/jolt.svg)](https://crates.io/crates/jolt)
+[![docs.rs](https://img.shields.io/docsrs/jolt)](https://docs.rs/jolt)
 [![pub.dev](https://img.shields.io/pub/v/flutter_jolt.svg)](https://pub.dev/packages/flutter_jolt)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -192,6 +193,12 @@ Current limitations:
 
 - `eval_module` on JSC/Web falls back to `eval()` (no module semantics)
 - FRB 2.11.1 generates a `wasmBindgenName` parameter that must be stripped after codegen (`just frb` handles this)
+
+## Documentation
+
+- **Rust API docs**: [docs.rs/jolt](https://docs.rs/jolt) (facade) | [docs.rs/jolt_core](https://docs.rs/jolt_core) (trait & types)
+- **Dart API docs**: [pub.dev/documentation/flutter_jolt](https://pub.dev/documentation/flutter_jolt/latest/)
+- **Backend docs**: [jolt_quickjs](https://docs.rs/jolt_quickjs) | [jolt_jsc](https://docs.rs/jolt_jsc) | [jolt_web](https://docs.rs/jolt_web)
 
 ## License
 

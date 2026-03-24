@@ -6,6 +6,13 @@ use crate::{JoltError, JsValue};
 /// A boxed future returning a Result — used for async runtime methods.
 pub type JsResultFuture<'a> = Pin<Box<dyn Future<Output = Result<JsValue, JoltError>> + 'a>>;
 
+/// A JavaScript runtime capable of evaluating code and exchanging values with Rust.
+///
+/// Each backend ([`QuickJS`](https://docs.rs/jolt_quickjs),
+/// [`JSC`](https://docs.rs/jolt_jsc), [`Web`](https://docs.rs/jolt_web))
+/// implements this trait. The [`jolt`](https://docs.rs/jolt) facade crate
+/// re-exports the correct implementation as `DefaultRuntime` based on the
+/// compilation target.
 pub trait JsRuntime: Send {
     /// Evaluate a JS expression/script.
     fn eval(&mut self, code: &str) -> Result<JsValue, JoltError>;

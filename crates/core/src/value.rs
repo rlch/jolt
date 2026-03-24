@@ -1,3 +1,20 @@
+/// A value that can cross the Rust–JavaScript boundary.
+///
+/// Mirrors the JavaScript type system: primitives (`Bool`, `Int`, `Float`,
+/// `String`), structural types (`Array`, `Object`), binary data (`Bytes`),
+/// and the absence-of-value sentinels (`Undefined`, `Null`).
+///
+/// Implements [`From`] conversions for common Rust types:
+///
+/// ```
+/// use jolt_core::JsValue;
+///
+/// let s: JsValue = "hello".into();
+/// let n: JsValue = 42i64.into();
+/// let f: JsValue = 2.72f64.into();
+/// let b: JsValue = true.into();
+/// ```
+///
 /// flutter_rust_bridge:non_opaque
 #[derive(Debug, Clone, PartialEq)]
 pub enum JsValue {
@@ -12,6 +29,8 @@ pub enum JsValue {
     Bytes(Vec<u8>),
 }
 
+/// A key-value pair in a [`JsValue::Object`].
+///
 /// flutter_rust_bridge:non_opaque
 #[derive(Debug, Clone, PartialEq)]
 pub struct JsEntry {
