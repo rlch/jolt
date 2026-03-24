@@ -17,7 +17,7 @@ quickjs = ["dep:jolt_quickjs"]
 web = ["dep:jolt_web"]
 
 [dependencies]
-jolt_core = { version = "0.1.2", path = "../core" }
-jolt_jsc = { version = "0.1.0", path = "../jsc", optional = true }
-jolt_quickjs = { version = "0.1.2", path = "../quickjs", optional = true }
-jolt_web = { version = "0.1.2", path = "../web", optional = true }
+jolt_core = { version = "0.1.3", path = "../core" }
+jolt_jsc = { version = "0.1.3", path = "../jsc", optional = true }
+jolt_quickjs = { version = "0.1.3", path = "../quickjs", optional = true }
+jolt_web = { version = "0.1.3", path = "../web", optional = true }
