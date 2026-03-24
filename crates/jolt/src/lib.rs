@@ -43,10 +43,7 @@ mod backend {
 
 #[cfg(any(
     feature = "web",
-    all(
-        not(any(feature = "jsc", feature = "quickjs")),
-        target_arch = "wasm32"
-    )
+    all(not(any(feature = "jsc", feature = "quickjs")), target_arch = "wasm32")
 ))]
 mod backend {
     pub use jolt_web::WebRuntime as DefaultRuntime;
