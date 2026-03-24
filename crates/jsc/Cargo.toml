@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "JavaScriptCore backend for the Jolt JavaScript runtime"
+readme = "README.md"
 
 [dependencies]
 jolt_core = { version = "0.1.1", path = "../core" }
