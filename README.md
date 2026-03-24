@@ -27,6 +27,8 @@ One Dart API, three engines, every Flutter platform.
 
 ### Rust (standalone)
 
+The Rust crates are independent and can be used outside Flutter. Pick the backend for your target or use the `jolt` facade crate which selects automatically:
+
 ```rust
 use jolt::{create_runtime, JsRuntime, JsValue};
 
@@ -50,6 +52,22 @@ rt.register_function("double", |args| {
     Ok(JsValue::Int(n * 2))
 }).unwrap();
 let doubled = rt.eval("double(21)").unwrap();
+```
+
+Or use a specific backend directly:
+
+```rust
+// QuickJS — Android, Linux, Windows, or anywhere
+use jolt_quickjs::QuickJsRuntime;
+use jolt_core::{JsRuntime, JsValue};
+
+let mut rt = QuickJsRuntime::new().unwrap();
+let result = rt.eval("1 + 1").unwrap();
+
+// JavaScriptCore — macOS, iOS
+use jolt_jsc::JscRuntime;
+let mut rt = JscRuntime::new().unwrap();
+let result = rt.eval("1 + 1").unwrap();
 ```
 
 ### Flutter (Dart)
@@ -76,6 +94,13 @@ final greeting = await rt.callFunction(
   name: 'greet',
   args: [JsValue.string('Flutter')],
 );
+
+// Register Dart functions callable from JS
+await rt.registerFunction(
+  name: 'double',
+  callback: (args) => JsValue.int_(args[0].int_ * 2),
+);
+final doubled = await rt.eval(code: 'double(21)');
 ```
 
 ## Architecture
@@ -97,6 +122,18 @@ final greeting = await rt.callFunction(
 └──────────────────────────────────────────────┘
 ```
 
+### Standalone Rust usage
+
+Each crate is independent — use them without Flutter:
+
+| Crate | Use case | Dependency |
+|---|---|---|
+| `jolt_core` | `JsRuntime` trait, `JsValue`, `JoltError` | None (pure types) |
+| `jolt_quickjs` | Embed QuickJS in any Rust app | `rquickjs` |
+| `jolt_jsc` | Use JavaScriptCore on Apple platforms | `rusty_jsc` |
+| `jolt_web` | Use host JS engine in WASM apps | `wasm-bindgen` |
+| `jolt` | Auto-select backend per target | One of the above |
+
 ### Workspace layout
 
 ```
@@ -112,34 +149,46 @@ flutter_jolt/
   example/  — Flutter demo app
 ```
 
-## Building
+## Building & testing
 
 Prerequisites: Rust toolchain, Flutter SDK, [`just`](https://github.com/casey/just) (optional).
 
 ```bash
-# Run all Rust tests
-just test
-# or: cargo test --workspace -- --test-threads=1
+# Run all native Rust tests (QuickJS + JSC + facade)
+cargo test --workspace -- --test-threads=1
+
+# Run WASM tests (requires wasm-pack + Node.js)
+cd crates/web && wasm-pack test --node
+
+# Individual crates
+cargo test -p jolt_quickjs
+cargo test -p jolt_jsc -- --test-threads=1
+cargo test -p jolt_core
 
 # Regenerate Flutter bindings
-just frb
+cd flutter_jolt && flutter_rust_bridge_codegen generate
 
-# Run the example app
-just run          # macOS
-just run-web      # Chrome (run `just build-web` first)
-just run-device <id>
+# Run the Flutter example app
+cd flutter_jolt/example && flutter run
 ```
 
 > JSC tests must run single-threaded (`--test-threads=1`) due to JavaScriptCore's threading model.
 
 ## Status
 
+| Feature | QuickJS | JSC | Web |
+|---|---|---|---|
+| `eval` | Yes | Yes | Yes |
+| `eval_async` (promises) | Yes | Yes (via drainMicrotasks) | Yes (via JsFuture) |
+| `call_function` | Yes | Yes | Yes |
+| `set_global` / `get_global` | Yes | Yes | Yes |
+| `register_function` | Yes | Yes | Yes |
+| `eval_module` | Yes | Falls back to eval | Falls back to eval |
+| Tests | 26 | 30 | 15 (wasm-pack) |
+
 Current limitations:
 
-- `eval_async` on JSC falls back to `eval()` (no promise resolution — JSC run loop not exposed via `rusty_jsc`)
-- `eval_async` on Web falls back to `eval()` (can't block on promises in WASM)
 - `eval_module` on JSC/Web falls back to `eval()` (no module semantics)
-- `register_function` is not yet exposed in the Dart FRB API (Rust-side only)
 - FRB 2.11.1 generates a `wasmBindgenName` parameter that must be stripped after codegen (`just frb` handles this)
 
 ## License

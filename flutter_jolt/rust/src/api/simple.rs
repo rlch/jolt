@@ -1,3 +1,4 @@
+use flutter_rust_bridge::DartFnFuture;
 use jolt::{create_runtime, JsRuntime};
 use std::sync::Mutex;
 
@@ -85,6 +86,19 @@ impl JoltRuntime {
 
     pub fn get_global(&self, name: String) -> Result<JsValue, JoltError> {
         self.lock()?.get_global(&name)
+    }
+
+    pub fn register_function(
+        &self,
+        name: String,
+        callback: impl Fn(Vec<JsValue>) -> DartFnFuture<JsValue> + Send + 'static,
+    ) -> Result<(), JoltError> {
+        self.lock()?.register_function(&name, move |args| {
+            // DartFnFuture is async — block_on to bridge to the sync register_function API.
+            // This is safe because FRB dispatches to the platform thread.
+            let result = futures::executor::block_on(callback(args));
+            Ok(result)
+        })
     }
 }
 

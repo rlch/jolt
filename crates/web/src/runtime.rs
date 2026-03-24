@@ -5,14 +5,13 @@ use crate::convert::{from_js_value, to_js_value};
 
 pub struct WebRuntime {
     /// Stored closures for registered functions — prevents memory leaks.
-    /// Without this, `Closure::forget()` would permanently leak each closure.
-    _closures: Vec<Closure<dyn Fn(wasm_bindgen::JsValue) -> wasm_bindgen::JsValue>>,
+    _closures_variadic: Vec<Closure<dyn Fn(js_sys::Array) -> wasm_bindgen::JsValue>>,
 }
 
 impl WebRuntime {
     pub fn new() -> Result<Self, JoltError> {
         Ok(Self {
-            _closures: Vec::new(),
+            _closures_variadic: Vec::new(),
         })
     }
 }
@@ -90,31 +89,42 @@ impl JsRuntime for WebRuntime {
     where
         F: Fn(Vec<JsValue>) -> Result<JsValue, JoltError> + Send + 'static,
     {
-        let closure = Closure::wrap(Box::new(move |args: wasm_bindgen::JsValue| -> wasm_bindgen::JsValue {
-            let js_args = js_sys::Array::from(&args);
-            let converted: Vec<JsValue> = (0..js_args.length())
-                .filter_map(|i| to_js_value(&js_args.get(i)).ok())
+        // Create a closure that receives a js_sys::Array of arguments.
+        let closure = Closure::wrap(Box::new(move |args: js_sys::Array| -> wasm_bindgen::JsValue {
+            let converted: Vec<JsValue> = (0..args.length())
+                .filter_map(|i| to_js_value(&args.get(i)).ok())
                 .collect();
             match f(converted) {
                 Ok(val) => from_js_value(&val).unwrap_or(wasm_bindgen::JsValue::undefined()),
                 Err(e) => {
-                    // Throw a JS Error so callers can detect failure
                     let err = js_sys::Error::new(&e.to_string());
                     wasm_bindgen::throw_val(err.into())
                 }
             }
-        }) as Box<dyn Fn(wasm_bindgen::JsValue) -> wasm_bindgen::JsValue>);
+        }) as Box<dyn Fn(js_sys::Array) -> wasm_bindgen::JsValue>);
 
+        // Create a JS wrapper that collects variadic arguments into an Array
+        // and forwards them to the Rust closure: function() { return __f(Array.from(arguments)); }
+        let inner_name = format!("__jolt_inner_{name}");
         let global = js_sys::global();
         js_sys::Reflect::set(
             &global,
-            &wasm_bindgen::JsValue::from_str(name),
+            &wasm_bindgen::JsValue::from_str(&inner_name),
             closure.as_ref(),
+        )
+        .map_err(|e| JoltError::RuntimeError(format!("Failed to set inner function: {:?}", e)))?;
+
+        let wrapper_body = format!("return globalThis.{inner_name}(Array.from(arguments))");
+        let wrapper = js_sys::Function::new_no_args(&wrapper_body);
+        js_sys::Reflect::set(
+            &global,
+            &wasm_bindgen::JsValue::from_str(name),
+            &wrapper,
         )
         .map_err(|e| JoltError::RuntimeError(format!("Failed to register function: {:?}", e)))?;
 
         // Store the closure to keep it alive (dropped with the runtime)
-        self._closures.push(closure);
+        self._closures_variadic.push(closure);
         Ok(())
     }
 
@@ -126,3 +136,140 @@ impl JsRuntime for WebRuntime {
 }
 
 unsafe impl Send for WebRuntime {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasm_bindgen_test::*;
+
+    #[wasm_bindgen_test]
+    fn test_eval_number() {
+        let mut rt = WebRuntime::new().unwrap();
+        let result = rt.eval("1 + 1").unwrap();
+        assert_eq!(result, JsValue::Int(2));
+    }
+
+    #[wasm_bindgen_test]
+    fn test_eval_string() {
+        let mut rt = WebRuntime::new().unwrap();
+        let result = rt.eval("'hello' + ' world'").unwrap();
+        assert_eq!(result, JsValue::String("hello world".to_owned()));
+    }
+
+    #[wasm_bindgen_test]
+    fn test_eval_float() {
+        let mut rt = WebRuntime::new().unwrap();
+        let result = rt.eval("3.14").unwrap();
+        assert_eq!(result, JsValue::Float(3.14));
+    }
+
+    #[wasm_bindgen_test]
+    fn test_eval_bool() {
+        let mut rt = WebRuntime::new().unwrap();
+        assert_eq!(rt.eval("true").unwrap(), JsValue::Bool(true));
+        assert_eq!(rt.eval("false").unwrap(), JsValue::Bool(false));
+    }
+
+    #[wasm_bindgen_test]
+    fn test_eval_null_undefined() {
+        let mut rt = WebRuntime::new().unwrap();
+        assert_eq!(rt.eval("null").unwrap(), JsValue::Null);
+        assert_eq!(rt.eval("undefined").unwrap(), JsValue::Undefined);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_eval_array() {
+        let mut rt = WebRuntime::new().unwrap();
+        let result = rt.eval("[1, 2, 3]").unwrap();
+        assert_eq!(
+            result,
+            JsValue::Array(vec![JsValue::Int(1), JsValue::Int(2), JsValue::Int(3)])
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn test_eval_object() {
+        let mut rt = WebRuntime::new().unwrap();
+        let result = rt.eval("({a: 1, b: 'two'})").unwrap();
+        match result {
+            JsValue::Object(entries) => {
+                assert!(entries.iter().any(|e| e.key == "a" && e.value == JsValue::Int(1)));
+                assert!(entries
+                    .iter()
+                    .any(|e| e.key == "b" && e.value == JsValue::String("two".to_owned())));
+            }
+            other => panic!("Expected object, got {other:?}"),
+        }
+    }
+
+    #[wasm_bindgen_test]
+    fn test_eval_error() {
+        let mut rt = WebRuntime::new().unwrap();
+        let result = rt.eval("throw new Error('boom')");
+        assert!(result.is_err());
+    }
+
+    #[wasm_bindgen_test]
+    fn test_set_get_global() {
+        let mut rt = WebRuntime::new().unwrap();
+        rt.set_global("__test_greeting", JsValue::String("hello".to_owned()))
+            .unwrap();
+        let result = rt.eval("__test_greeting.toUpperCase()").unwrap();
+        assert_eq!(result, JsValue::String("HELLO".to_owned()));
+    }
+
+    #[wasm_bindgen_test]
+    fn test_call_function() {
+        let mut rt = WebRuntime::new().unwrap();
+        // Use globalThis to ensure function is on the global object in Node
+        rt.eval("globalThis.__test_add = function(a, b) { return a + b; }")
+            .unwrap();
+        let result = rt
+            .call_function("__test_add", &[JsValue::Int(2), JsValue::Int(3)])
+            .unwrap();
+        assert_eq!(result, JsValue::Int(5));
+    }
+
+    #[wasm_bindgen_test]
+    fn test_register_function() {
+        let mut rt = WebRuntime::new().unwrap();
+        rt.register_function("__test_double", |args| {
+            let n = args.first().and_then(|v| v.as_i64()).unwrap_or(0);
+            Ok(JsValue::Int(n * 2))
+        })
+        .unwrap();
+        let result = rt.eval("__test_double(21)").unwrap();
+        assert_eq!(result, JsValue::Int(42));
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_eval_async_promise() {
+        let mut rt = WebRuntime::new().unwrap();
+        let result = rt.eval_async("Promise.resolve(42)").await.unwrap();
+        assert_eq!(result, JsValue::Int(42));
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_eval_async_chained_promise() {
+        let mut rt = WebRuntime::new().unwrap();
+        let result = rt
+            .eval_async("Promise.resolve(10).then(x => x * 2).then(x => x + 1)")
+            .await
+            .unwrap();
+        assert_eq!(result, JsValue::Int(21));
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_eval_async_non_promise() {
+        let mut rt = WebRuntime::new().unwrap();
+        let result = rt.eval_async("1 + 1").await.unwrap();
+        assert_eq!(result, JsValue::Int(2));
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_eval_async_rejected_promise() {
+        let mut rt = WebRuntime::new().unwrap();
+        let result = rt.eval_async("Promise.reject('boom')").await;
+        assert!(result.is_err());
+    }
+}
