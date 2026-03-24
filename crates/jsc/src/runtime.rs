@@ -1,7 +1,45 @@
+use std::ffi::c_void;
+use std::sync::Once;
+
 use jolt_core::{JoltError, JsResultFuture, JsRuntime, JsValue};
 use rusty_jsc::{callback, JSContext, JSValue, JSValue as JscValue};
+use rusty_jsc_sys::{JSContextGetGroup, JSContextGroupRef, JSGlobalContextRef};
 
 use crate::convert::{from_js_value, to_js_value};
+
+// ---- drainMicrotasks via dlsym ----
+
+type DrainMicrotasksFn = unsafe extern "C" fn(*mut c_void);
+
+static INIT_DRAIN: Once = Once::new();
+static mut DRAIN_MICROTASKS: Option<DrainMicrotasksFn> = None;
+
+fn get_drain_microtasks() -> Option<DrainMicrotasksFn> {
+    INIT_DRAIN.call_once(|| {
+        let sym = unsafe {
+            libc::dlsym(
+                libc::RTLD_DEFAULT,
+                b"_ZN3JSC2VM15drainMicrotasksEv\0".as_ptr() as *const _,
+            )
+        };
+        if !sym.is_null() {
+            unsafe { DRAIN_MICROTASKS = Some(std::mem::transmute(sym)) };
+        }
+    });
+    unsafe { DRAIN_MICROTASKS }
+}
+
+/// Drain the JSC microtask queue (promise resolution).
+///
+/// Uses `JSContextGetGroup()` (public C API) to obtain `VM*`, then calls
+/// the C++ symbol `JSC::VM::drainMicrotasks()` resolved via `dlsym`.
+/// Falls back to no-op if the symbol is unavailable.
+fn drain_jsc_microtasks(raw_ctx: JSGlobalContextRef) {
+    if let Some(drain) = get_drain_microtasks() {
+        let group: JSContextGroupRef = unsafe { JSContextGetGroup(raw_ctx as _) };
+        unsafe { drain(group as *mut c_void) };
+    }
+}
 
 type ClosureFn = dyn Fn(Vec<JsValue>) -> Result<JsValue, JoltError> + Send + 'static;
 
@@ -109,6 +147,8 @@ where
 
 pub struct JscRuntime {
     context: JSContext,
+    /// Raw global context pointer — used for drainMicrotasks.
+    raw_ctx: JSGlobalContextRef,
     /// Stored closures for registered functions — prevents memory leaks.
     /// `Box::into_raw()` pointers are reclaimed when the runtime drops.
     _closures: Vec<*mut Box<ClosureFn>>,
@@ -116,8 +156,20 @@ pub struct JscRuntime {
 
 impl JscRuntime {
     pub fn new() -> Result<Self, JoltError> {
+        // Create context group + global context manually so we can store the raw pointer.
+        let group = unsafe { rusty_jsc_sys::JSContextGroupCreate() };
+        let raw_ctx = unsafe {
+            rusty_jsc_sys::JSGlobalContextCreateInGroup(group, std::ptr::null_mut())
+        };
+        let context = JSContext::from(raw_ctx as _);
+        // Release our retain — JSContext::from retains internally.
+        unsafe {
+            rusty_jsc_sys::JSGlobalContextRelease(raw_ctx);
+            rusty_jsc_sys::JSContextGroupRelease(group);
+        }
         Ok(Self {
-            context: JSContext::default(),
+            context,
+            raw_ctx,
             _closures: Vec::new(),
         })
     }
@@ -144,11 +196,64 @@ impl JsRuntime for JscRuntime {
     }
 
     fn eval_async(&mut self, code: &str) -> JsResultFuture<'_> {
-        // JSC doesn't expose promise resolution through rusty_jsc.
-        // Falls back to sync eval — promises return the promise object, not the resolved value.
-        // TODO: Implement via JSC run loop or drainMicrotasks when bindings are available.
-        let result = self.eval(code);
-        Box::pin(async move { result })
+        // Wrap the code to detect promises: if the result is a Promise, attach a
+        // .then()/.catch() to capture the resolved/rejected value, then drain microtasks.
+        let wrapper = format!(
+            r#"(function() {{
+                var __result = {{ resolved: false, value: undefined, error: undefined }};
+                var __val = (function() {{ return {code}; }})();
+                if (__val && typeof __val === 'object' && typeof __val.then === 'function') {{
+                    __val.then(
+                        function(v) {{ __result.resolved = true; __result.value = v; }},
+                        function(e) {{ __result.resolved = true; __result.error = e; }}
+                    );
+                    return __result;
+                }}
+                return {{ resolved: true, value: __val }};
+            }})()"#
+        );
+
+        let raw_ctx = self.raw_ctx;
+
+        Box::pin(async move {
+            let result = self
+                .context
+                .evaluate_script(&wrapper, 1)
+                .map_err(|e| self.jsc_err_to_jolt(e))?;
+
+            // Drain microtasks to resolve .then()/.catch() callbacks
+            drain_jsc_microtasks(raw_ctx);
+
+            // Extract the result object
+            let result_obj = result
+                .to_object(&self.context)
+                .map_err(|e| self.jsc_err_to_jolt(e))?;
+
+            let resolved = result_obj
+                .get_property(&self.context, "resolved")
+                .to_bool(&self.context);
+
+            if !resolved {
+                return Err(JoltError::RuntimeError(
+                    "Promise did not resolve (drainMicrotasks unavailable?)".to_owned(),
+                ));
+            }
+
+            let error = result_obj.get_property(&self.context, "error");
+            if !error.is_undefined(&self.context) {
+                let msg = error
+                    .to_string(&self.context)
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|_| "Promise rejected".to_owned());
+                return Err(JoltError::EvalError {
+                    message: msg,
+                    stack: None,
+                });
+            }
+
+            let value = result_obj.get_property(&self.context, "value");
+            to_js_value(&self.context, &value)
+        })
     }
 
     fn call_function(&mut self, name: &str, args: &[JsValue]) -> Result<JsValue, JoltError> {
@@ -535,5 +640,36 @@ mod tests {
             }
             // rt drops here — all closures should be freed
         }
+    }
+
+    #[tokio::test]
+    async fn test_eval_async_promise() {
+        let mut rt = JscRuntime::new().unwrap();
+        let result = rt.eval_async("Promise.resolve(42)").await.unwrap();
+        assert_eq!(result, JsValue::Int(42));
+    }
+
+    #[tokio::test]
+    async fn test_eval_async_chained_promise() {
+        let mut rt = JscRuntime::new().unwrap();
+        let result = rt
+            .eval_async("Promise.resolve(10).then(x => x * 2).then(x => x + 1)")
+            .await
+            .unwrap();
+        assert_eq!(result, JsValue::Int(21));
+    }
+
+    #[tokio::test]
+    async fn test_eval_async_non_promise() {
+        let mut rt = JscRuntime::new().unwrap();
+        let result = rt.eval_async("1 + 1").await.unwrap();
+        assert_eq!(result, JsValue::Int(2));
+    }
+
+    #[tokio::test]
+    async fn test_eval_async_rejected_promise() {
+        let mut rt = JscRuntime::new().unwrap();
+        let result = rt.eval_async("Promise.reject('boom')").await;
+        assert!(result.is_err());
     }
 }
