@@ -3,6 +3,8 @@
 Rust-powered JavaScript runtime for Flutter. Picks the best JS engine for each platform and bridges it to Dart via [`flutter_rust_bridge`](https://github.com/aspect-build/flutter_rust_bridge).
 
 [![CI](https://github.com/rlch/jolt/actions/workflows/ci.yml/badge.svg)](https://github.com/rlch/jolt/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/jolt.svg)](https://crates.io/crates/jolt)
+[![pub.dev](https://img.shields.io/pub/v/flutter_jolt.svg)](https://pub.dev/packages/flutter_jolt)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## Why

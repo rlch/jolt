@@ -1,92 +1,51 @@
 # flutter_jolt
 
-A new Flutter FFI plugin project.
+[![pub.dev](https://img.shields.io/pub/v/flutter_jolt.svg)](https://pub.dev/packages/flutter_jolt)
+[![CI](https://github.com/rlch/jolt/actions/workflows/ci.yml/badge.svg)](https://github.com/rlch/jolt/actions/workflows/ci.yml)
 
-## Getting Started
+Flutter plugin for [Jolt](https://github.com/rlch/jolt) — a Rust-powered JavaScript runtime that picks the best engine per platform.
 
-This project is a starting point for a Flutter
-[FFI plugin](https://flutter.dev/to/ffi-package),
-a specialized package that includes native code directly invoked with Dart FFI.
+| Platform | Engine | Bundle cost |
+|---|---|---|
+| iOS / macOS | JavaScriptCore | 0 (system framework) |
+| Android / Linux / Windows | QuickJS | ~1 MB |
+| Web | Host browser JS | 0 |
 
-## Project structure
+## Usage
 
-This template uses the following structure:
+```dart
+import 'package:flutter_jolt/flutter_jolt.dart';
 
-* `src`: Contains the native source code, and a CmakeFile.txt file for building
-  that source code into a dynamic library.
+// Initialize once (in main)
+await RustLib.init();
 
-* `lib`: Contains the Dart code that defines the API of the plugin, and which
-  calls into the native code using `dart:ffi`.
+// Create a runtime
+final rt = JoltRuntime();
 
-* platform folders (`android`, `ios`, `windows`, etc.): Contains the build files
-  for building and bundling the native code library with the platform application.
+// Evaluate JavaScript
+final result = await rt.eval(code: '1 + 1');
 
-## Building and bundling native code
+// Globals
+await rt.setGlobal(name: 'x', value: JsValue.int_(42));
+final x = await rt.getGlobal(name: 'x');
 
-The `pubspec.yaml` specifies FFI plugins as follows:
-
-```yaml
-  plugin:
-    platforms:
-      some_platform:
-        ffiPlugin: true
+// Call JS functions
+await rt.eval(code: 'function greet(n) { return "Hello, " + n; }');
+final greeting = await rt.callFunction(
+  name: 'greet',
+  args: [JsValue.string('Flutter')],
+);
 ```
 
-This configuration invokes the native build for the various target platforms
-and bundles the binaries in Flutter applications using these FFI plugins.
-
-This can be combined with dartPluginClass, such as when FFI is used for the
-implementation of one platform in a federated plugin:
+## Installation
 
 ```yaml
-  plugin:
-    implements: some_other_plugin
-    platforms:
-      some_platform:
-        dartPluginClass: SomeClass
-        ffiPlugin: true
+dependencies:
+  flutter_jolt: ^0.1.0
 ```
 
-A plugin can have both FFI and method channels:
+Requires Rust toolchain for native compilation. The plugin uses [Cargokit](https://github.com/aspect-build/cargokit) to build Rust code automatically during `flutter build` / `flutter run`.
 
-```yaml
-  plugin:
-    platforms:
-      some_platform:
-        pluginClass: SomeName
-        ffiPlugin: true
-```
+## License
 
-The native build systems that are invoked by FFI (and method channel) plugins are:
-
-* For Android: Gradle, which invokes the Android NDK for native builds.
-  * See the documentation in android/build.gradle.
-* For iOS and MacOS: Xcode, via CocoaPods.
-  * See the documentation in ios/flutter_jolt.podspec.
-  * See the documentation in macos/flutter_jolt.podspec.
-* For Linux and Windows: CMake.
-  * See the documentation in linux/CMakeLists.txt.
-  * See the documentation in windows/CMakeLists.txt.
-
-## Binding to native code
-
-To use the native code, bindings in Dart are needed.
-To avoid writing these by hand, they are generated from the header file
-(`src/flutter_jolt.h`) by `package:ffigen`.
-Regenerate the bindings by running `dart run ffigen --config ffigen.yaml`.
-
-## Invoking native code
-
-Very short-running native functions can be directly invoked from any isolate.
-For example, see `sum` in `lib/flutter_jolt.dart`.
-
-Longer-running functions should be invoked on a helper isolate to avoid
-dropping frames in Flutter applications.
-For example, see `sumAsync` in `lib/flutter_jolt.dart`.
-
-## Flutter help
-
-For help getting started with Flutter, view our
-[online documentation](https://docs.flutter.dev), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-
+MIT — see [LICENSE](https://github.com/rlch/jolt/blob/main/LICENSE).
