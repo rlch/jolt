@@ -23,7 +23,4 @@ jobs:
           channel: stable
       - run: flutter pub get
       - run: flutter pub publish --dry-run
-      - run: dart pub token add https://pub.dev --env-var PUB_TOKEN
-        env:
-          PUB_TOKEN: ${{ secrets.PUB_DEV_TOKEN }}
       - run: dart pub publish --force
