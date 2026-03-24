@@ -33,7 +33,7 @@ cd crates/web && wasm-pack test --node
 cargo test -p jolt_core
 cargo test -p jolt_quickjs
 cargo test -p jolt_jsc -- --test-threads=1
-cargo test -p jolt -- --test-threads=1
+cargo test -p jolt_rs -- --test-threads=1
 
 # FRB codegen (run from flutter_jolt/)
 cd flutter_jolt && flutter_rust_bridge_codegen generate

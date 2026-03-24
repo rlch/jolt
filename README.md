@@ -3,8 +3,8 @@
 Rust-powered JavaScript runtime for Flutter. Picks the best JS engine for each platform and bridges it to Dart via [`flutter_rust_bridge`](https://github.com/aspect-build/flutter_rust_bridge).
 
 [![CI](https://github.com/rlch/jolt/actions/workflows/ci.yml/badge.svg)](https://github.com/rlch/jolt/actions/workflows/ci.yml)
-[![crates.io](https://img.shields.io/crates/v/jolt.svg)](https://crates.io/crates/jolt)
-[![docs.rs](https://img.shields.io/docsrs/jolt)](https://docs.rs/jolt)
+[![crates.io](https://img.shields.io/crates/v/jolt_rs.svg)](https://crates.io/crates/jolt_rs)
+[![docs.rs](https://img.shields.io/docsrs/jolt_rs)](https://docs.rs/jolt_rs)
 [![pub.dev](https://img.shields.io/pub/v/flutter_jolt.svg)](https://pub.dev/packages/flutter_jolt)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -135,7 +135,7 @@ Each crate is independent — use them without Flutter:
 | `jolt_quickjs` | Embed QuickJS in any Rust app | `rquickjs` |
 | `jolt_jsc` | Use JavaScriptCore on Apple platforms | `rusty_jsc` |
 | `jolt_web` | Use host JS engine in WASM apps | `wasm-bindgen` |
-| `jolt` | Auto-select backend per target | One of the above |
+| `jolt_rs` | Auto-select backend per target | One of the above |
 
 ### Workspace layout
 
@@ -196,7 +196,7 @@ Current limitations:
 
 ## Documentation
 
-- **Rust API docs**: [docs.rs/jolt](https://docs.rs/jolt) (facade) | [docs.rs/jolt_core](https://docs.rs/jolt_core) (trait & types)
+- **Rust API docs**: [docs.rs/jolt_rs](https://docs.rs/jolt_rs) (facade) | [docs.rs/jolt_core](https://docs.rs/jolt_core) (trait & types)
 - **Dart API docs**: [pub.dev/documentation/flutter_jolt](https://pub.dev/documentation/flutter_jolt/latest/)
 - **Backend docs**: [jolt_quickjs](https://docs.rs/jolt_quickjs) | [jolt_jsc](https://docs.rs/jolt_jsc) | [jolt_web](https://docs.rs/jolt_web)
 

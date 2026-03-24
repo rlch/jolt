@@ -8,7 +8,7 @@ publish = false
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-jolt = { path = "../../crates/jolt" }
+jolt = { path = "../../crates/jolt", package = "jolt_rs" }
 jolt_core = { path = "../../crates/core" }
 flutter_rust_bridge = "=2.11.1"
 futures = { version = "0.3", default-features = false, features = ["executor"] }

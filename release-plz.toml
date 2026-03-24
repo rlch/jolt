@@ -20,9 +20,8 @@ name = "jolt_web"
 publish = true
 
 [[package]]
-name = "jolt"
-publish = false
-release = false
+name = "jolt_rs"
+publish = true
 
 [[package]]
 name = "flutter_jolt"
