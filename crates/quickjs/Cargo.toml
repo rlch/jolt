@@ -8,7 +8,7 @@ description = "QuickJS backend for the Jolt JavaScript runtime"
 readme = "README.md"
 
 [dependencies]
-jolt_core = { version = "0.1.2", path = "../core" }
+jolt_core = { version = "0.1.3", path = "../core" }
 rquickjs = { version = "0.11", features = ["bindgen", "classes", "properties", "parallel"] }
 
 [dev-dependencies]

@@ -8,7 +8,7 @@ description = "WASM/browser backend for the Jolt JavaScript runtime"
 readme = "README.md"
 
 [dependencies]
-jolt_core = { version = "0.1.2", path = "../core" }
+jolt_core = { version = "0.1.3", path = "../core" }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
