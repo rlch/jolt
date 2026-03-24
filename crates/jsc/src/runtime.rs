@@ -104,18 +104,22 @@ where
 
     // Create callback, then .bind(null, ptr_val) to bake the closure pointer
     let callback_val = JscValue::callback(context, Some(registered_fn_trampoline));
-    let callback_obj = callback_val
-        .to_object(context)
-        .map_err(|e: JscValue| {
-            let msg = e.to_string(context).map(|s| s.to_string()).unwrap_or_default();
-            JoltError::RuntimeError(msg)
-        })?;
+    let callback_obj = callback_val.to_object(context).map_err(|e: JscValue| {
+        let msg = e
+            .to_string(context)
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        JoltError::RuntimeError(msg)
+    })?;
 
     let bind_fn = callback_obj
         .get_property(context, "bind")
         .to_object(context)
         .map_err(|e: JscValue| {
-            let msg = e.to_string(context).map(|s| s.to_string()).unwrap_or_default();
+            let msg = e
+                .to_string(context)
+                .map(|s| s.to_string())
+                .unwrap_or_default();
             JoltError::RuntimeError(msg)
         })?;
 
@@ -129,7 +133,10 @@ where
             ],
         )
         .map_err(|e: JscValue| {
-            let msg = e.to_string(context).map(|s| s.to_string()).unwrap_or_default();
+            let msg = e
+                .to_string(context)
+                .map(|s| s.to_string())
+                .unwrap_or_default();
             JoltError::RuntimeError(msg)
         })?;
 
@@ -139,7 +146,10 @@ where
         .map_err(|e: JscValue| {
             // Clean up the raw pointer on failure
             unsafe { drop(Box::from_raw(raw_ptr)) };
-            let msg = e.to_string(context).map(|s| s.to_string()).unwrap_or_default();
+            let msg = e
+                .to_string(context)
+                .map(|s| s.to_string())
+                .unwrap_or_default();
             JoltError::RuntimeError(msg)
         })?;
     Ok(raw_ptr)
@@ -158,9 +168,8 @@ impl JscRuntime {
     pub fn new() -> Result<Self, JoltError> {
         // Create context group + global context manually so we can store the raw pointer.
         let group = unsafe { rusty_jsc_sys::JSContextGroupCreate() };
-        let raw_ctx = unsafe {
-            rusty_jsc_sys::JSGlobalContextCreateInGroup(group, std::ptr::null_mut())
-        };
+        let raw_ctx =
+            unsafe { rusty_jsc_sys::JSGlobalContextCreateInGroup(group, std::ptr::null_mut()) };
         let context = JSContext::from(raw_ctx as _);
         // Release our retain — JSContext::from retains internally.
         unsafe {
@@ -372,7 +381,8 @@ mod tests {
     #[test]
     fn test_set_get_global() {
         let mut rt = JscRuntime::new().unwrap();
-        rt.set_global("greeting", JsValue::String("hello".to_owned())).unwrap();
+        rt.set_global("greeting", JsValue::String("hello".to_owned()))
+            .unwrap();
         let result = rt.eval("greeting.toUpperCase()").unwrap();
         assert_eq!(result, JsValue::String("HELLO".to_owned()));
     }
@@ -381,7 +391,9 @@ mod tests {
     fn test_call_function() {
         let mut rt = JscRuntime::new().unwrap();
         rt.eval("function add(a, b) { return a + b; }").unwrap();
-        let result = rt.call_function("add", &[JsValue::Int(2), JsValue::Int(3)]).unwrap();
+        let result = rt
+            .call_function("add", &[JsValue::Int(2), JsValue::Int(3)])
+            .unwrap();
         assert_eq!(result, JsValue::Int(5));
     }
 
@@ -449,8 +461,12 @@ mod tests {
         let result = rt.eval("({a: 1, b: 'two'})").unwrap();
         match result {
             JsValue::Object(entries) => {
-                assert!(entries.iter().any(|e| e.key == "a" && e.value == JsValue::Int(1)));
-                assert!(entries.iter().any(|e| e.key == "b" && e.value == JsValue::String("two".to_owned())));
+                assert!(entries
+                    .iter()
+                    .any(|e| e.key == "a" && e.value == JsValue::Int(1)));
+                assert!(entries
+                    .iter()
+                    .any(|e| e.key == "b" && e.value == JsValue::String("two".to_owned())));
             }
             other => panic!("Expected object, got {other:?}"),
         }
@@ -461,9 +477,11 @@ mod tests {
     #[test]
     fn test_register_function_replace() {
         let mut rt = JscRuntime::new().unwrap();
-        rt.register_function("val", |_| Ok(JsValue::Int(1))).unwrap();
+        rt.register_function("val", |_| Ok(JsValue::Int(1)))
+            .unwrap();
         assert_eq!(rt.eval("val()").unwrap(), JsValue::Int(1));
-        rt.register_function("val", |_| Ok(JsValue::Int(2))).unwrap();
+        rt.register_function("val", |_| Ok(JsValue::Int(2)))
+            .unwrap();
         assert_eq!(rt.eval("val()").unwrap(), JsValue::Int(2));
     }
 
@@ -472,7 +490,8 @@ mod tests {
         let mut rt = JscRuntime::new().unwrap();
         for i in 0..100 {
             let name = format!("fn_{i}");
-            rt.register_function(&name, move |_| Ok(JsValue::Int(i))).unwrap();
+            rt.register_function(&name, move |_| Ok(JsValue::Int(i)))
+                .unwrap();
         }
         assert_eq!(rt.eval("fn_0()").unwrap(), JsValue::Int(0));
         assert_eq!(rt.eval("fn_99()").unwrap(), JsValue::Int(99));
@@ -501,7 +520,9 @@ mod tests {
                 let inner = outer.iter().find(|e| e.key == "a").unwrap();
                 match &inner.value {
                     JsValue::Object(entries) => {
-                        assert!(entries.iter().any(|e| e.key == "b" && e.value == JsValue::Int(1)));
+                        assert!(entries
+                            .iter()
+                            .any(|e| e.key == "b" && e.value == JsValue::Int(1)));
                     }
                     other => panic!("Expected nested object, got {other:?}"),
                 }
@@ -534,10 +555,13 @@ mod tests {
     #[test]
     fn test_closure_captures_state() {
         let mut rt = JscRuntime::new().unwrap();
-        rt.eval(r#"
+        rt.eval(
+            r#"
             var state = { count: 0 };
             function increment() { state.count += 1; return state.count; }
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         assert_eq!(rt.eval("increment()").unwrap(), JsValue::Int(1));
         assert_eq!(rt.eval("increment()").unwrap(), JsValue::Int(2));
         assert_eq!(rt.eval("increment()").unwrap(), JsValue::Int(3));
@@ -556,7 +580,8 @@ mod tests {
             let value = args.get(1).cloned().unwrap_or(JsValue::Undefined);
             mutations_clone.lock().unwrap().push((key, value));
             Ok(JsValue::Bool(true))
-        }).unwrap();
+        })
+        .unwrap();
 
         rt.register_function("__getter", |args| {
             let key = args[0].as_str().unwrap_or("");
@@ -564,14 +589,18 @@ mod tests {
                 "count" => Ok(JsValue::Int(5)),
                 _ => Ok(JsValue::Undefined),
             }
-        }).unwrap();
+        })
+        .unwrap();
 
-        rt.eval(r#"
+        rt.eval(
+            r#"
             var props = new Proxy({}, {
                 get(target, key) { return __getter(key); },
                 set(target, key, value) { return __setter(key, value); }
             });
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         let result = rt.eval("props.count").unwrap();
         assert_eq!(result, JsValue::Int(5));
@@ -587,12 +616,15 @@ mod tests {
     fn test_iife_scope_with_eval() {
         let mut rt = JscRuntime::new().unwrap();
 
-        rt.eval(r#"
+        rt.eval(
+            r#"
             var __scope = (function() {
                 var local_count = 0;
                 return function(code) { return eval(code); };
             })();
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         let result = rt.eval("__scope('local_count += 1')").unwrap();
         assert_eq!(result, JsValue::Int(1));
@@ -607,7 +639,8 @@ mod tests {
     fn test_cross_scope_closure() {
         let mut rt = JscRuntime::new().unwrap();
 
-        rt.eval(r#"
+        rt.eval(
+            r#"
             var shared_ctx = {};
             var __parent = (function() {
                 var count = 0;
@@ -618,7 +651,9 @@ mod tests {
                 var ctx = shared_ctx;
                 return function(code) { return eval(code); };
             })();
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         let result = rt.eval("__child('ctx.increment()')").unwrap();
         assert_eq!(result, JsValue::Int(1));
@@ -636,7 +671,8 @@ mod tests {
             let mut rt = JscRuntime::new().unwrap();
             for i in 0..50 {
                 let name = format!("f_{i}");
-                rt.register_function(&name, move |_| Ok(JsValue::Int(i))).unwrap();
+                rt.register_function(&name, move |_| Ok(JsValue::Int(i)))
+                    .unwrap();
             }
             // rt drops here — all closures should be freed
         }

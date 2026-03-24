@@ -59,10 +59,14 @@ pub fn from_js_value(val: &JsValue) -> Result<WasmJsValue, JoltError> {
         JsValue::Object(entries) => {
             let obj = js_sys::Object::new();
             for entry in entries {
-                js_sys::Reflect::set(&obj, &WasmJsValue::from_str(&entry.key), &from_js_value(&entry.value)?)
-                    .map_err(|e| {
-                        JoltError::ConversionError(format!("Failed to set property: {:?}", e))
-                    })?;
+                js_sys::Reflect::set(
+                    &obj,
+                    &WasmJsValue::from_str(&entry.key),
+                    &from_js_value(&entry.value)?,
+                )
+                .map_err(|e| {
+                    JoltError::ConversionError(format!("Failed to set property: {:?}", e))
+                })?;
             }
             Ok(obj.into())
         }

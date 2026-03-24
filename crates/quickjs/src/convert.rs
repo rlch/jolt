@@ -15,27 +15,30 @@ pub fn to_js_value<'js>(ctx: &Ctx<'js>, val: Value<'js>) -> Result<JsValue, Jolt
         let f = val.as_float().unwrap_or(f64::NAN);
         Ok(JsValue::Float(f))
     } else if val.is_string() {
-        let s: String = FromJs::from_js(ctx, val)
-            .map_err(|e| JoltError::ConversionError(e.to_string()))?;
+        let s: String =
+            FromJs::from_js(ctx, val).map_err(|e| JoltError::ConversionError(e.to_string()))?;
         Ok(JsValue::String(s))
     } else if val.is_array() {
-        let arr = Array::from_js(ctx, val)
-            .map_err(|e| JoltError::ConversionError(e.to_string()))?;
+        let arr =
+            Array::from_js(ctx, val).map_err(|e| JoltError::ConversionError(e.to_string()))?;
         let mut items = Vec::with_capacity(arr.len());
         for i in 0..arr.len() {
-            let item: Value = arr.get(i)
+            let item: Value = arr
+                .get(i)
                 .map_err(|e| JoltError::ConversionError(e.to_string()))?;
             items.push(to_js_value(ctx, item)?);
         }
         Ok(JsValue::Array(items))
     } else if val.is_object() {
-        let obj = Object::from_js(ctx, val)
-            .map_err(|e| JoltError::ConversionError(e.to_string()))?;
+        let obj =
+            Object::from_js(ctx, val).map_err(|e| JoltError::ConversionError(e.to_string()))?;
         let mut entries = Vec::new();
         for result in obj.props::<String, Value>() {
-            let (key, value) = result
-                .map_err(|e| JoltError::ConversionError(e.to_string()))?;
-            entries.push(JsEntry { key, value: to_js_value(ctx, value)? });
+            let (key, value) = result.map_err(|e| JoltError::ConversionError(e.to_string()))?;
+            entries.push(JsEntry {
+                key,
+                value: to_js_value(ctx, value)?,
+            });
         }
         Ok(JsValue::Object(entries))
     } else {
@@ -63,8 +66,8 @@ pub fn from_js_value<'js>(ctx: &Ctx<'js>, val: &JsValue) -> Result<Value<'js>, J
             Ok(js_str.into_value())
         }
         JsValue::Array(items) => {
-            let arr = Array::new(ctx.clone())
-                .map_err(|e| JoltError::ConversionError(e.to_string()))?;
+            let arr =
+                Array::new(ctx.clone()).map_err(|e| JoltError::ConversionError(e.to_string()))?;
             for (i, item) in items.iter().enumerate() {
                 let v = from_js_value(ctx, item)?;
                 arr.set(i, v)
@@ -73,8 +76,8 @@ pub fn from_js_value<'js>(ctx: &Ctx<'js>, val: &JsValue) -> Result<Value<'js>, J
             Ok(arr.into_value())
         }
         JsValue::Object(entries) => {
-            let obj = Object::new(ctx.clone())
-                .map_err(|e| JoltError::ConversionError(e.to_string()))?;
+            let obj =
+                Object::new(ctx.clone()).map_err(|e| JoltError::ConversionError(e.to_string()))?;
             for entry in entries {
                 let v = from_js_value(ctx, &entry.value)?;
                 obj.set(entry.key.as_str(), v)
@@ -83,8 +86,8 @@ pub fn from_js_value<'js>(ctx: &Ctx<'js>, val: &JsValue) -> Result<Value<'js>, J
             Ok(obj.into_value())
         }
         JsValue::Bytes(bytes) => {
-            let arr = Array::new(ctx.clone())
-                .map_err(|e| JoltError::ConversionError(e.to_string()))?;
+            let arr =
+                Array::new(ctx.clone()).map_err(|e| JoltError::ConversionError(e.to_string()))?;
             for (i, byte) in bytes.iter().enumerate() {
                 arr.set(i, *byte as i32)
                     .map_err(|e| JoltError::ConversionError(e.to_string()))?;

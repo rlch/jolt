@@ -3,7 +3,7 @@ use jolt::{create_runtime, JsRuntime};
 use std::sync::Mutex;
 
 // Re-export core types so they're accessible from this crate
-pub use jolt_core::{JsEntry, JsValue, JoltError};
+pub use jolt_core::{JoltError, JsEntry, JsValue};
 
 // Mirror definitions tell FRB how to generate translatable Dart types
 // for types defined in external crates. The structure must match exactly.
@@ -72,11 +72,7 @@ impl JoltRuntime {
         futures::executor::block_on(future)
     }
 
-    pub fn call_function(
-        &self,
-        name: String,
-        args: Vec<JsValue>,
-    ) -> Result<JsValue, JoltError> {
+    pub fn call_function(&self, name: String, args: Vec<JsValue>) -> Result<JsValue, JoltError> {
         self.lock()?.call_function(&name, &args)
     }
 

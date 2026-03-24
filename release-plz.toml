@@ -12,7 +12,8 @@ publish = true
 
 [[package]]
 name = "jolt_jsc"
-publish = true
+publish = false
+release = false
 
 [[package]]
 name = "jolt_web"
@@ -20,7 +21,8 @@ publish = true
 
 [[package]]
 name = "jolt"
-publish = true
+publish = false
+release = false
 
 [[package]]
 name = "flutter_jolt"

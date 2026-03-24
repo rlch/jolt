@@ -48,8 +48,11 @@ mod tests {
     #[test]
     fn test_facade_call_function() {
         let mut rt = create_runtime().unwrap();
-        rt.eval("function greet(name) { return 'Hello, ' + name + '!'; }").unwrap();
-        let result = rt.call_function("greet", &[JsValue::from("World")]).unwrap();
+        rt.eval("function greet(name) { return 'Hello, ' + name + '!'; }")
+            .unwrap();
+        let result = rt
+            .call_function("greet", &[JsValue::from("World")])
+            .unwrap();
         assert_eq!(result, JsValue::String("Hello, World!".to_owned()));
     }
 }

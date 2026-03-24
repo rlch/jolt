@@ -1,5 +1,5 @@
 use jolt_core::{JoltError, JsResultFuture, JsRuntime, JsValue};
-use rquickjs::{Context, Function, Module, Runtime, Value, function::Args};
+use rquickjs::{function::Args, Context, Function, Module, Runtime, Value};
 
 use crate::convert::{from_js_value, to_js_value, JsValueWrapper};
 
@@ -10,10 +10,12 @@ pub struct QuickJsRuntime {
 
 impl QuickJsRuntime {
     pub fn new() -> Result<Self, JoltError> {
-        let runtime =
-            Runtime::new().map_err(|e| JoltError::RuntimeError(format!("Failed to create QuickJS runtime: {e}")))?;
-        let context = Context::full(&runtime)
-            .map_err(|e| JoltError::RuntimeError(format!("Failed to create QuickJS context: {e}")))?;
+        let runtime = Runtime::new().map_err(|e| {
+            JoltError::RuntimeError(format!("Failed to create QuickJS runtime: {e}"))
+        })?;
+        let context = Context::full(&runtime).map_err(|e| {
+            JoltError::RuntimeError(format!("Failed to create QuickJS context: {e}"))
+        })?;
         Ok(Self { runtime, context })
     }
 
@@ -49,21 +51,18 @@ impl JsRuntime for QuickJsRuntime {
         // QuickJS has its own microtask queue — MaybePromise::finish() drives it synchronously.
         Box::pin(async move {
             self.context.with(|ctx| {
-                let promise: rquickjs::promise::MaybePromise =
-                    ctx.eval(code).map_err(|e| {
-                        let msg = format!("{e}");
-                        let stack = ctx.catch().as_string().and_then(|s| s.to_string().ok());
-                        JoltError::EvalError {
-                            message: msg,
-                            stack,
-                        }
-                    })?;
-
-                let val: Value = promise.finish().map_err(|e| {
+                let promise: rquickjs::promise::MaybePromise = ctx.eval(code).map_err(|e| {
+                    let msg = format!("{e}");
+                    let stack = ctx.catch().as_string().and_then(|s| s.to_string().ok());
                     JoltError::EvalError {
-                        message: e.to_string(),
-                        stack: None,
+                        message: msg,
+                        stack,
                     }
+                })?;
+
+                let val: Value = promise.finish().map_err(|e| JoltError::EvalError {
+                    message: e.to_string(),
+                    stack: None,
                 })?;
                 to_js_value(&ctx, val)
             })
@@ -75,23 +74,21 @@ impl JsRuntime for QuickJsRuntime {
         let args_owned = args.to_vec();
         self.context.with(|ctx| {
             let globals = ctx.globals();
-            let func: Function = globals.get(&*name).map_err(|_| {
-                JoltError::FunctionNotFound(name.clone())
-            })?;
+            let func: Function = globals
+                .get(&*name)
+                .map_err(|_| JoltError::FunctionNotFound(name.clone()))?;
 
             let mut js_args = Args::new(ctx.clone(), args_owned.len());
             for a in &args_owned {
                 let v = from_js_value(&ctx, a)?;
-                js_args.push_arg(v).map_err(|e| {
-                    JoltError::ConversionError(format!("Failed to push arg: {e}"))
-                })?;
+                js_args
+                    .push_arg(v)
+                    .map_err(|e| JoltError::ConversionError(format!("Failed to push arg: {e}")))?;
             }
 
-            let result: Value = func.call_arg(js_args).map_err(|e| {
-                JoltError::EvalError {
-                    message: e.to_string(),
-                    stack: None,
-                }
+            let result: Value = func.call_arg(js_args).map_err(|e| JoltError::EvalError {
+                message: e.to_string(),
+                stack: None,
             })?;
             to_js_value(&ctx, result)
         })
@@ -102,9 +99,9 @@ impl JsRuntime for QuickJsRuntime {
         self.context.with(|ctx| {
             let globals = ctx.globals();
             let val = from_js_value(&ctx, &value)?;
-            globals.set(&*name, val).map_err(|e| {
-                JoltError::RuntimeError(format!("Failed to set global '{name}': {e}"))
-            })
+            globals
+                .set(&*name, val)
+                .map_err(|e| JoltError::RuntimeError(format!("Failed to set global '{name}': {e}")))
         })
     }
 
@@ -157,13 +154,12 @@ impl JsRuntime for QuickJsRuntime {
         self.drain_jobs();
 
         self.context.with(|ctx| {
-            let promise: rquickjs::Promise = promise.restore(&ctx)
+            let promise: rquickjs::Promise = promise
+                .restore(&ctx)
                 .map_err(|e| JoltError::RuntimeError(e.to_string()))?;
-            let val: Value = promise.finish().map_err(|e| {
-                JoltError::EvalError {
-                    message: e.to_string(),
-                    stack: None,
-                }
+            let val: Value = promise.finish().map_err(|e| JoltError::EvalError {
+                message: e.to_string(),
+                stack: None,
             })?;
             to_js_value(&ctx, val)
         })
@@ -226,7 +222,8 @@ mod tests {
     #[test]
     fn test_set_get_global() {
         let mut rt = QuickJsRuntime::new().unwrap();
-        rt.set_global("greeting", JsValue::String("hello".to_owned())).unwrap();
+        rt.set_global("greeting", JsValue::String("hello".to_owned()))
+            .unwrap();
         let result = rt.eval("greeting.toUpperCase()").unwrap();
         assert_eq!(result, JsValue::String("HELLO".to_owned()));
     }
@@ -243,7 +240,9 @@ mod tests {
     fn test_call_function() {
         let mut rt = QuickJsRuntime::new().unwrap();
         rt.eval("function add(a, b) { return a + b; }").unwrap();
-        let result = rt.call_function("add", &[JsValue::Int(2), JsValue::Int(3)]).unwrap();
+        let result = rt
+            .call_function("add", &[JsValue::Int(2), JsValue::Int(3)])
+            .unwrap();
         assert_eq!(result, JsValue::Int(5));
     }
 
@@ -272,8 +271,12 @@ mod tests {
         let result = rt.eval("({a: 1, b: 'two'})").unwrap();
         match result {
             JsValue::Object(entries) => {
-                assert!(entries.iter().any(|e| e.key == "a" && e.value == JsValue::Int(1)));
-                assert!(entries.iter().any(|e| e.key == "b" && e.value == JsValue::String("two".to_owned())));
+                assert!(entries
+                    .iter()
+                    .any(|e| e.key == "a" && e.value == JsValue::Int(1)));
+                assert!(entries
+                    .iter()
+                    .any(|e| e.key == "b" && e.value == JsValue::String("two".to_owned())));
             }
             other => panic!("Expected object, got {other:?}"),
         }
@@ -295,9 +298,11 @@ mod tests {
     #[test]
     fn test_register_function_replace() {
         let mut rt = QuickJsRuntime::new().unwrap();
-        rt.register_function("val", |_| Ok(JsValue::Int(1))).unwrap();
+        rt.register_function("val", |_| Ok(JsValue::Int(1)))
+            .unwrap();
         assert_eq!(rt.eval("val()").unwrap(), JsValue::Int(1));
-        rt.register_function("val", |_| Ok(JsValue::Int(2))).unwrap();
+        rt.register_function("val", |_| Ok(JsValue::Int(2)))
+            .unwrap();
         assert_eq!(rt.eval("val()").unwrap(), JsValue::Int(2));
     }
 
@@ -306,7 +311,8 @@ mod tests {
         let mut rt = QuickJsRuntime::new().unwrap();
         for i in 0..100 {
             let name = format!("fn_{i}");
-            rt.register_function(&name, move |_| Ok(JsValue::Int(i))).unwrap();
+            rt.register_function(&name, move |_| Ok(JsValue::Int(i)))
+                .unwrap();
         }
         assert_eq!(rt.eval("fn_0()").unwrap(), JsValue::Int(0));
         assert_eq!(rt.eval("fn_99()").unwrap(), JsValue::Int(99));
@@ -352,7 +358,9 @@ mod tests {
                 let inner = outer.iter().find(|e| e.key == "a").unwrap();
                 match &inner.value {
                     JsValue::Object(entries) => {
-                        assert!(entries.iter().any(|e| e.key == "b" && e.value == JsValue::Int(1)));
+                        assert!(entries
+                            .iter()
+                            .any(|e| e.key == "b" && e.value == JsValue::Int(1)));
                     }
                     other => panic!("Expected nested object, got {other:?}"),
                 }
@@ -385,10 +393,13 @@ mod tests {
     #[test]
     fn test_closure_captures_state() {
         let mut rt = QuickJsRuntime::new().unwrap();
-        rt.eval(r#"
+        rt.eval(
+            r#"
             var state = { count: 0 };
             function increment() { state.count += 1; return state.count; }
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         assert_eq!(rt.eval("increment()").unwrap(), JsValue::Int(1));
         assert_eq!(rt.eval("increment()").unwrap(), JsValue::Int(2));
         assert_eq!(rt.eval("increment()").unwrap(), JsValue::Int(3));
@@ -407,7 +418,8 @@ mod tests {
             let value = args.get(1).cloned().unwrap_or(JsValue::Undefined);
             mutations_clone.lock().unwrap().push((key, value));
             Ok(JsValue::Bool(true))
-        }).unwrap();
+        })
+        .unwrap();
 
         rt.register_function("__getter", |args| {
             let key = args[0].as_str().unwrap_or("");
@@ -415,14 +427,18 @@ mod tests {
                 "count" => Ok(JsValue::Int(5)),
                 _ => Ok(JsValue::Undefined),
             }
-        }).unwrap();
+        })
+        .unwrap();
 
-        rt.eval(r#"
+        rt.eval(
+            r#"
             var props = new Proxy({}, {
                 get(target, key) { return __getter(key); },
                 set(target, key, value) { return __setter(key, value); }
             });
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         let result = rt.eval("props.count").unwrap();
         assert_eq!(result, JsValue::Int(5));
@@ -439,12 +455,15 @@ mod tests {
         let mut rt = QuickJsRuntime::new().unwrap();
 
         // Simulate ComponentScope pattern: IIFE returns an executor
-        rt.eval(r#"
+        rt.eval(
+            r#"
             var __scope = (function() {
                 var local_count = 0;
                 return function(code) { return eval(code); };
             })();
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         // Execute in scope — local_count is accessible
         let result = rt.eval("__scope('local_count += 1')").unwrap();
@@ -462,7 +481,8 @@ mod tests {
         let mut rt = QuickJsRuntime::new().unwrap();
 
         // Parent scope provides a callback
-        rt.eval(r#"
+        rt.eval(
+            r#"
             var shared_ctx = {};
             var __parent = (function() {
                 var count = 0;
@@ -473,7 +493,9 @@ mod tests {
                 var ctx = shared_ctx;
                 return function(code) { return eval(code); };
             })();
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         // Child calls parent's callback — executes in parent's scope
         let result = rt.eval("__child('ctx.increment()')").unwrap();

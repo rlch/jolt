@@ -61,7 +61,8 @@ impl JsRuntime for WebRuntime {
             js_args.set(i as u32, from_js_value(arg)?);
         }
 
-        let result = func.apply(&wasm_bindgen::JsValue::undefined(), &js_args)
+        let result = func
+            .apply(&wasm_bindgen::JsValue::undefined(), &js_args)
             .map_err(|e| JoltError::EvalError {
                 message: format!("{:?}", e),
                 stack: None,
@@ -90,18 +91,20 @@ impl JsRuntime for WebRuntime {
         F: Fn(Vec<JsValue>) -> Result<JsValue, JoltError> + Send + 'static,
     {
         // Create a closure that receives a js_sys::Array of arguments.
-        let closure = Closure::wrap(Box::new(move |args: js_sys::Array| -> wasm_bindgen::JsValue {
-            let converted: Vec<JsValue> = (0..args.length())
-                .filter_map(|i| to_js_value(&args.get(i)).ok())
-                .collect();
-            match f(converted) {
-                Ok(val) => from_js_value(&val).unwrap_or(wasm_bindgen::JsValue::undefined()),
-                Err(e) => {
-                    let err = js_sys::Error::new(&e.to_string());
-                    wasm_bindgen::throw_val(err.into())
+        let closure = Closure::wrap(
+            Box::new(move |args: js_sys::Array| -> wasm_bindgen::JsValue {
+                let converted: Vec<JsValue> = (0..args.length())
+                    .filter_map(|i| to_js_value(&args.get(i)).ok())
+                    .collect();
+                match f(converted) {
+                    Ok(val) => from_js_value(&val).unwrap_or(wasm_bindgen::JsValue::undefined()),
+                    Err(e) => {
+                        let err = js_sys::Error::new(&e.to_string());
+                        wasm_bindgen::throw_val(err.into())
+                    }
                 }
-            }
-        }) as Box<dyn Fn(js_sys::Array) -> wasm_bindgen::JsValue>);
+            }) as Box<dyn Fn(js_sys::Array) -> wasm_bindgen::JsValue>,
+        );
 
         // Create a JS wrapper that collects variadic arguments into an Array
         // and forwards them to the Rust closure: function() { return __f(Array.from(arguments)); }
@@ -116,12 +119,9 @@ impl JsRuntime for WebRuntime {
 
         let wrapper_body = format!("return globalThis.{inner_name}(Array.from(arguments))");
         let wrapper = js_sys::Function::new_no_args(&wrapper_body);
-        js_sys::Reflect::set(
-            &global,
-            &wasm_bindgen::JsValue::from_str(name),
-            &wrapper,
-        )
-        .map_err(|e| JoltError::RuntimeError(format!("Failed to register function: {:?}", e)))?;
+        js_sys::Reflect::set(&global, &wasm_bindgen::JsValue::from_str(name), &wrapper).map_err(
+            |e| JoltError::RuntimeError(format!("Failed to register function: {:?}", e)),
+        )?;
 
         // Store the closure to keep it alive (dropped with the runtime)
         self._closures_variadic.push(closure);
@@ -193,7 +193,9 @@ mod tests {
         let result = rt.eval("({a: 1, b: 'two'})").unwrap();
         match result {
             JsValue::Object(entries) => {
-                assert!(entries.iter().any(|e| e.key == "a" && e.value == JsValue::Int(1)));
+                assert!(entries
+                    .iter()
+                    .any(|e| e.key == "a" && e.value == JsValue::Int(1)));
                 assert!(entries
                     .iter()
                     .any(|e| e.key == "b" && e.value == JsValue::String("two".to_owned())));
