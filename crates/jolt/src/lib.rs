@@ -6,9 +6,9 @@
 //!
 //! | Target | Backend |
 //! |---|---|
-//! | iOS / macOS | [`jolt_jsc::JscRuntime`] (JavaScriptCore) |
-//! | `wasm32` | [`jolt_web::WebRuntime`] (host browser JS) |
-//! | Everything else | [`jolt_quickjs::QuickJsRuntime`] (QuickJS) |
+//! | iOS / macOS | `jolt_jsc::JscRuntime` (JavaScriptCore) |
+//! | `wasm32` | `jolt_web::WebRuntime` (host browser JS) |
+//! | Everything else | `jolt_quickjs::QuickJsRuntime` (QuickJS) |
 //!
 //! # Quick start
 //!
