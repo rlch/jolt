@@ -1,4 +1,4 @@
-# Jolt (JavaScript on lot's of targets)
+# Jolt (JavaScript on lots of targets)
 
 Rust-powered JavaScript runtime. Picks the best JS engine for each platform — use standalone in Rust, or with Flutter via [`flutter_jolt`](https://github.com/rlch/flutter_jolt).
 
