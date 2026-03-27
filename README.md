@@ -1,11 +1,10 @@
 # Jolt (JavaScript on lot's of targets)
 
-Rust-powered JavaScript runtime for Flutter. Picks the best JS engine for each platform and bridges it to Dart via [`flutter_rust_bridge`](https://github.com/aspect-build/flutter_rust_bridge).
+Rust-powered JavaScript runtime. Picks the best JS engine for each platform — use standalone in Rust, or with Flutter via [`flutter_jolt`](https://github.com/rlch/flutter_jolt).
 
 [![CI](https://github.com/rlch/jolt/actions/workflows/ci.yml/badge.svg)](https://github.com/rlch/jolt/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/jolt_rs.svg)](https://crates.io/crates/jolt_rs)
 [![docs.rs](https://img.shields.io/docsrs/jolt_rs)](https://docs.rs/jolt_rs)
-[![pub.dev](https://img.shields.io/pub/v/flutter_jolt.svg)](https://pub.dev/packages/flutter_jolt)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## Why
@@ -16,7 +15,7 @@ Flutter has no built-in JS engine. Existing packages either bundle a single engi
 - **Tiny JS everywhere else** -- QuickJS adds ~1 MB, no JIT required
 - **Native speed on web** -- delegates straight to the browser's JS engine via `wasm-bindgen`
 
-One Dart API, three engines, every Flutter platform.
+One API, three engines, every platform.
 
 ## Engine matrix
 
@@ -27,8 +26,6 @@ One Dart API, three engines, every Flutter platform.
 | Web (WASM) | Host JS | [`js-sys`](https://docs.rs/js-sys) / [`wasm-bindgen`](https://docs.rs/wasm-bindgen) | Calls through to browser engine |
 
 ## Quick start
-
-### Rust (standalone)
 
 The Rust crates are independent and can be used outside Flutter. Pick the backend for your target or use the `jolt` facade crate which selects automatically:
 
@@ -73,48 +70,13 @@ let mut rt = JscRuntime::new().unwrap();
 let result = rt.eval("1 + 1").unwrap();
 ```
 
-### Flutter (Dart)
-
-```dart
-import 'package:flutter_jolt/flutter_jolt.dart';
-
-// Initialize once
-await RustLib.init();
-
-// Create a runtime
-final rt = JoltRuntime();
-
-// Evaluate JS
-final result = await rt.eval(code: '1 + 1');
-
-// Work with globals
-await rt.setGlobal(name: 'x', value: JsValue.int_(42));
-final x = await rt.getGlobal(name: 'x');
-
-// Call JS functions
-await rt.eval(code: 'function greet(name) { return "Hello, " + name; }');
-final greeting = await rt.callFunction(
-  name: 'greet',
-  args: [JsValue.string('Flutter')],
-);
-
-// Register Dart functions callable from JS
-await rt.registerFunction(
-  name: 'double',
-  callback: (args) => JsValue.int_(args[0].int_ * 2),
-);
-final doubled = await rt.eval(code: 'double(21)');
-```
+For Flutter/Dart usage, see [`flutter_jolt`](https://github.com/rlch/flutter_jolt).
 
 ## Architecture
 
 ```
 ┌──────────────────────────────────────────────┐
-│  flutter_jolt (Dart plugin)                  │
-│  └─ rust/ (FRB bridge crate)                 │
-│       └─ JoltRuntime ─► Mutex<DefaultRuntime>│
-├──────────────────────────────────────────────┤
-│  jolt (facade crate)                         │
+│  jolt_rs (facade crate)                      │
 │  cfg-gates the correct backend:              │
 │    ios/macos  → jolt_jsc                     │
 │    wasm32     → jolt_web                     │
@@ -125,9 +87,7 @@ final doubled = await rt.eval(code: 'double(21)');
 └──────────────────────────────────────────────┘
 ```
 
-### Standalone Rust usage
-
-Each crate is independent — use them without Flutter:
+### Crates
 
 | Crate | Use case | Dependency |
 |---|---|---|
@@ -146,15 +106,11 @@ crates/
   jsc/      — JavaScriptCore backend
   web/      — WASM/browser backend
   jolt/     — Facade (re-exports correct backend per target)
-flutter_jolt/
-  rust/     — FRB bridge crate
-  lib/      — Generated Dart bindings
-  example/  — Flutter demo app
 ```
 
 ## Building & testing
 
-Prerequisites: Rust toolchain, Flutter SDK, [`just`](https://github.com/casey/just) (optional).
+Prerequisites: Rust toolchain, [`just`](https://github.com/casey/just) (optional).
 
 ```bash
 # Run all native Rust tests (QuickJS + JSC + facade)
@@ -167,12 +123,6 @@ cd crates/web && wasm-pack test --node
 cargo test -p jolt_quickjs
 cargo test -p jolt_jsc -- --test-threads=1
 cargo test -p jolt_core
-
-# Regenerate Flutter bindings
-cd flutter_jolt && flutter_rust_bridge_codegen generate
-
-# Run the Flutter example app
-cd flutter_jolt/example && flutter run
 ```
 
 > JSC tests must run single-threaded (`--test-threads=1`) due to JavaScriptCore's threading model.
@@ -192,13 +142,12 @@ cd flutter_jolt/example && flutter run
 Current limitations:
 
 - `eval_module` on JSC/Web falls back to `eval()` (no module semantics)
-- FRB 2.11.1 generates a `wasmBindgenName` parameter that must be stripped after codegen (`just frb` handles this)
 
 ## Documentation
 
 - **Rust API docs**: [docs.rs/jolt_rs](https://docs.rs/jolt_rs) (facade) | [docs.rs/jolt_core](https://docs.rs/jolt_core) (trait & types)
-- **Dart API docs**: [pub.dev/documentation/flutter_jolt](https://pub.dev/documentation/flutter_jolt/latest/)
 - **Backend docs**: [jolt_quickjs](https://docs.rs/jolt_quickjs) | [jolt_jsc](https://docs.rs/jolt_jsc) | [jolt_web](https://docs.rs/jolt_web)
+- **Flutter plugin**: [flutter_jolt](https://github.com/rlch/flutter_jolt) | [pub.dev](https://pub.dev/packages/flutter_jolt)
 
 ## License
 

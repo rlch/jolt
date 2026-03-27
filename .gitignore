@@ -1,10 +1,5 @@
 target/
-.dart_tool/
-build/
 *.lock
-.packages
-.flutter-plugins
-.flutter-plugins-dependencies
 .idea/
 *.iml
 .DS_Store
